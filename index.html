@@ -16,7 +16,7 @@
 <main>
   <section class="card">
     <h2>1. 房貸基本計算</h2>
-    <p class="note">說明：貸款金額 = 房屋總價 − 頭期款；月付金依還款方式計算 — 「本息平均攤還」每月還款金額固定，公式為 <code>月付金 = 貸款金額 × 月利率 × (1+月利率)^期數 ÷ ((1+月利率)^期數 − 1)</code>；「本金平均攤還」每月償還本金固定，利息隨剩餘本金遞減，月付金隨時間下降。</p>
+    <p class="note">說明：貸款金額 = 房屋總價 − 頭期款；月付金依還款方式計算 — 「本息平均攤還」每月還款金額固定，公式為 <code>月付金 = 貸款金額 × 月利率 × (1+月利率)^期數 ÷ ((1+月利率)^期數 − 1)</code>；「本金平均攤還」每月償還本金固定，利息隨剩餘本金遞減，月付金隨時間下降。需求年薪估算 = 首月月付金 × 12 ÷ 房貸負擔比上限，代表在該負擔比下應具備的最低年薪。</p>
     <div class="grid">
       <label>房屋總價（萬元）
         <input type="number" id="housePrice" value="1600" min="0" step="1">
@@ -38,6 +38,9 @@
           <option value="equalPayment">本息平均攤還</option>
           <option value="equalPrincipal">本金平均攤還</option>
         </select>
+      </label>
+      <label>房貸負擔比上限（%）
+        <input type="number" id="dtiRatio" value="33" min="1" max="100" step="1">
       </label>
     </div>
     <div class="result" id="loanResult"></div>

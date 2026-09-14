@@ -46,16 +46,19 @@ function calcLoanSchedule(loanAmount, annualRatePct, years, type) {
   return schedule;
 }
 
-function renderLoanResult(schedule, loanAmount) {
+function renderLoanResult(schedule, loanAmount, dtiRatioPct) {
   const totalPayment = schedule.reduce((s, r) => s + r.payment, 0);
   const totalInterest = totalPayment - loanAmount;
   const firstMonthPayment = schedule[0].payment;
+  const dtiRatio = dtiRatioPct > 0 ? dtiRatioPct / 100 : 0.33;
+  const requiredAnnualSalary = (firstMonthPayment * 12) / dtiRatio;
 
   const el = document.getElementById("loanResult");
   el.innerHTML = `
     <div class="stat"><div class="label">首月月付金（萬元）</div><div class="value">${fmt(firstMonthPayment)}</div></div>
     <div class="stat"><div class="label">總繳金額（萬元）</div><div class="value">${fmt(totalPayment)}</div></div>
     <div class="stat"><div class="label">總利息（萬元）</div><div class="value">${fmt(totalInterest)}</div></div>
+    <div class="stat"><div class="label">需求年薪估算（萬元）</div><div class="value">${fmt(requiredAnnualSalary)}</div></div>
   `;
 }
 
@@ -163,11 +166,20 @@ function updateLoanAmount() {
   return loanAmount;
 }
 
-function runCalculation() {
+function updateLoanResult() {
   const loanAmount = updateLoanAmount();
   const loanRate = parseFloat(document.getElementById("loanRate").value) || 0;
   const loanYears = parseInt(document.getElementById("loanYears").value) || 1;
   const repayType = document.getElementById("repayType").value;
+  const dtiRatio = parseFloat(document.getElementById("dtiRatio").value) || 33;
+
+  const loanSchedule = calcLoanSchedule(loanAmount, loanRate, loanYears, repayType);
+  renderLoanResult(loanSchedule, loanAmount, dtiRatio);
+  return loanSchedule;
+}
+
+function runCalculation() {
+  const loanSchedule = updateLoanResult();
 
   const currentCash = parseFloat(document.getElementById("currentCash").value) || 0;
   const currentStock = parseFloat(document.getElementById("currentStock").value) || 0;
@@ -177,9 +189,6 @@ function runCalculation() {
   const monthlyStock = parseFloat(document.getElementById("monthlyStock").value) || 0;
   const stockGrowthRate = parseFloat(document.getElementById("stockGrowthRate").value) || 0;
   const simYears = parseInt(document.getElementById("simYears").value) || 1;
-
-  const loanSchedule = calcLoanSchedule(loanAmount, loanRate, loanYears, repayType);
-  renderLoanResult(loanSchedule, loanAmount);
 
   const housePrice = parseFloat(document.getElementById("housePrice").value) || 0;
 
@@ -202,6 +211,8 @@ function runCalculation() {
 }
 
 document.getElementById("calcBtn").addEventListener("click", runCalculation);
-document.getElementById("housePrice").addEventListener("input", updateLoanAmount);
-document.getElementById("downPayment").addEventListener("input", updateLoanAmount);
+["housePrice", "downPayment", "loanRate", "loanYears", "dtiRatio"].forEach((id) =>
+  document.getElementById(id).addEventListener("input", updateLoanResult)
+);
+document.getElementById("repayType").addEventListener("change", updateLoanResult);
 document.addEventListener("DOMContentLoaded", runCalculation);
