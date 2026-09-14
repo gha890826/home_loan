@@ -10,11 +10,14 @@ function calcLoanSchedule(loanAmount, annualRatePct, years, type) {
   const schedule = []; // { month, payment, principal, interest, balance }
   let balance = loanAmount;
 
+  let paidSoFar = 0;
+
   if (monthlyRate === 0) {
     const principalPerMonth = loanAmount / months;
     for (let m = 1; m <= months; m++) {
       balance -= principalPerMonth;
-      schedule.push({ month: m, payment: principalPerMonth, principal: principalPerMonth, interest: 0, balance: Math.max(balance, 0) });
+      paidSoFar += principalPerMonth;
+      schedule.push({ month: m, payment: principalPerMonth, principal: principalPerMonth, interest: 0, balance: Math.max(balance, 0), paidSoFar });
     }
     return schedule;
   }
@@ -27,7 +30,8 @@ function calcLoanSchedule(loanAmount, annualRatePct, years, type) {
       const interest = balance * monthlyRate;
       const principal = payment - interest;
       balance -= principal;
-      schedule.push({ month: m, payment, principal, interest, balance: Math.max(balance, 0) });
+      paidSoFar += payment;
+      schedule.push({ month: m, payment, principal, interest, balance: Math.max(balance, 0), paidSoFar });
     }
   } else {
     const principalPerMonth = loanAmount / months;
@@ -35,7 +39,8 @@ function calcLoanSchedule(loanAmount, annualRatePct, years, type) {
       const interest = balance * monthlyRate;
       const payment = principalPerMonth + interest;
       balance -= principalPerMonth;
-      schedule.push({ month: m, payment, principal: principalPerMonth, interest, balance: Math.max(balance, 0) });
+      paidSoFar += payment;
+      schedule.push({ month: m, payment, principal: principalPerMonth, interest, balance: Math.max(balance, 0), paidSoFar });
     }
   }
   return schedule;
@@ -64,6 +69,7 @@ function simulateAssets(params) {
     monthlyStock,
     stockGrowthRatePct,
     simMonths,
+    housePrice,
   } = params;
 
   const monthlyCashRate = cashGrowthRatePct / 100 / 12;
@@ -72,13 +78,15 @@ function simulateAssets(params) {
   let cash = currentCash;
   let stock = currentStock;
   const rows = []; // per month
+  const totalPaid = loanSchedule.length ? loanSchedule[loanSchedule.length - 1].paidSoFar : 0;
 
   for (let m = 1; m <= simMonths; m++) {
     cash = cash * (1 + monthlyCashRate) + monthlyCash;
     stock = stock * (1 + monthlyStockRate) + monthlyStock;
     const loanBalance = m <= loanSchedule.length ? loanSchedule[m - 1].balance : 0;
-    const netWorth = cash + stock - loanBalance;
-    rows.push({ month: m, cash, stock, loanBalance, netWorth });
+    const loanPaid = m <= loanSchedule.length ? loanSchedule[m - 1].paidSoFar : totalPaid;
+    const netWorth = cash + stock + housePrice - loanBalance;
+    rows.push({ month: m, cash, stock, loanBalance, loanPaid, netWorth });
   }
   return rows;
 }
@@ -126,6 +134,7 @@ function renderYearlyTable(rows) {
       tr.innerHTML = `
         <td>第 ${r.month / 12} 年</td>
         <td>${fmt(r.loanBalance)}</td>
+        <td>${fmt(r.loanPaid)}</td>
         <td>${fmt(r.cash)}</td>
         <td>${fmt(r.stock)}</td>
         <td>${fmt(r.netWorth)}</td>
@@ -139,6 +148,7 @@ function renderSummary(rows, simYears) {
   const el = document.getElementById("summaryResult");
   el.innerHTML = `
     <div class="stat"><div class="label">第 ${simYears} 年房貸剩餘（萬元）</div><div class="value">${fmt(last.loanBalance)}</div></div>
+    <div class="stat"><div class="label">第 ${simYears} 年房貸已繳金額（萬元）</div><div class="value">${fmt(last.loanPaid)}</div></div>
     <div class="stat"><div class="label">第 ${simYears} 年累積現金（萬元）</div><div class="value">${fmt(last.cash)}</div></div>
     <div class="stat"><div class="label">第 ${simYears} 年累積股票（萬元）</div><div class="value">${fmt(last.stock)}</div></div>
     <div class="stat"><div class="label">第 ${simYears} 年淨資產（萬元）</div><div class="value">${fmt(last.netWorth)}</div></div>
@@ -171,6 +181,8 @@ function runCalculation() {
   const loanSchedule = calcLoanSchedule(loanAmount, loanRate, loanYears, repayType);
   renderLoanResult(loanSchedule, loanAmount);
 
+  const housePrice = parseFloat(document.getElementById("housePrice").value) || 0;
+
   const simMonths = simYears * 12;
   const rows = simulateAssets({
     loanSchedule,
@@ -181,6 +193,7 @@ function runCalculation() {
     monthlyStock,
     stockGrowthRatePct: stockGrowthRate,
     simMonths,
+    housePrice,
   });
 
   renderSummary(rows, simYears);

@@ -19,16 +19,16 @@
     <p class="note">說明：貸款金額 = 房屋總價 − 頭期款；月付金依還款方式計算 — 「本息平均攤還」每月還款金額固定，公式為 <code>月付金 = 貸款金額 × 月利率 × (1+月利率)^期數 ÷ ((1+月利率)^期數 − 1)</code>；「本金平均攤還」每月償還本金固定，利息隨剩餘本金遞減，月付金隨時間下降。</p>
     <div class="grid">
       <label>房屋總價（萬元）
-        <input type="number" id="housePrice" value="1000" min="0" step="1">
+        <input type="number" id="housePrice" value="1600" min="0" step="1">
       </label>
       <label>頭期款（萬元）
-        <input type="number" id="downPayment" value="200" min="0" step="1">
+        <input type="number" id="downPayment" value="320" min="0" step="1">
       </label>
       <label>貸款金額（萬元）
-        <input type="number" id="loanAmount" value="800" min="0" step="1" readonly>
+        <input type="number" id="loanAmount" value="1280" min="0" step="1" readonly>
       </label>
       <label>貸款年利率（%）
-        <input type="number" id="loanRate" value="2.1" min="0" step="0.01">
+        <input type="number" id="loanRate" value="2.3" min="0" step="0.01">
       </label>
       <label>貸款年限（年）
         <input type="number" id="loanYears" value="30" min="1" step="1">
@@ -51,7 +51,7 @@
         <input type="number" id="currentCash" value="100" min="0" step="1">
       </label>
       <label>現有股票（萬元）
-        <input type="number" id="currentStock" value="50" min="0" step="1">
+        <input type="number" id="currentStock" value="100" min="0" step="1">
       </label>
     </div>
   </section>
@@ -81,20 +81,21 @@
 
   <section class="card">
     <h2>試算結果</h2>
-    <p class="note">說明：淨資產 = 累積現金 + 累積股票 − 房貸剩餘本金。折線圖與下方逐年明細皆以此邏輯逐年（每 12 個月）取樣呈現。</p>
+    <p class="note">說明：淨資產 = 累積現金 + 累積股票 + 房屋價值 − 房貸剩餘本金（房屋價值採房屋總價，暫不考慮增值）。折線圖與下方逐年明細皆以此邏輯逐年（每 12 個月）取樣呈現。</p>
     <div class="result" id="summaryResult"></div>
     <canvas id="chart" height="120"></canvas>
   </section>
 
   <section class="card">
     <h2>逐年明細</h2>
-    <p class="note">說明：每一列代表該年度末（第 12、24、36…個月）的房貸剩餘本金、累積現金、累積股票與淨資產金額。</p>
+    <p class="note">說明：每一列代表該年度末（第 12、24、36…個月）的房貸剩餘本金、房貸已繳金額（本金+利息累計）、累積現金、累積股票與淨資產金額。</p>
     <div class="table-wrap">
       <table id="yearlyTable">
         <thead>
           <tr>
             <th>年度</th>
             <th>房貸剩餘（萬）</th>
+            <th>房貸已繳金額（萬）</th>
             <th>累積現金（萬）</th>
             <th>累積股票（萬）</th>
             <th>淨資產（萬）</th>
