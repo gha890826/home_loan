@@ -75,6 +75,29 @@ function renderTargetHouses() {
     amounts.textContent = `總價 ${fmt(house.price)} 萬 · 頭期款 ${fmt(house.downPayment)} 萬`;
     details.append(name, amounts);
 
+    const features = [];
+    if (house.area !== undefined && house.area !== null && house.area !== "") {
+      features.push(`坪數 ${fmt(house.area)} 坪`);
+    }
+    if (house.publicRatio !== undefined && house.publicRatio !== null && house.publicRatio !== "") {
+      features.push(`公設比 ${fmt(house.publicRatio)}%`);
+    }
+    if (house.unitPrice !== undefined && house.unitPrice !== null && house.unitPrice !== "") {
+      const unitPrice = Number(house.area) > 0 ? house.price / house.area : house.unitPrice;
+      features.push(`單價 ${Number(unitPrice).toLocaleString("zh-Hant-TW", { maximumFractionDigits: 2 })} 萬／坪`);
+    }
+    if (features.length) {
+      const featureDetails = document.createElement("span");
+      featureDetails.textContent = features.join(" · ");
+      details.append(featureDetails);
+    }
+    if (house.notes) {
+      const notes = document.createElement("span");
+      notes.className = "target-house-notes-text";
+      notes.textContent = `備註：${house.notes}`;
+      details.append(notes);
+    }
+
     const actions = document.createElement("div");
     actions.className = "target-house-actions";
     const loadButton = document.createElement("button");
@@ -109,12 +132,24 @@ function addTargetHouse() {
     name,
     price: parseFloat(document.getElementById("housePrice").value) || 0,
     downPayment: parseFloat(document.getElementById("downPayment").value) || 0,
+    area: optionalTargetHouseNumber("targetHouseArea"),
+    publicRatio: optionalTargetHouseNumber("targetHousePublicRatio"),
+    unitPrice: optionalTargetHouseNumber("targetHouseUnitPrice"),
+    notes: document.getElementById("targetHouseNotes").value.trim(),
   });
   if (!saveTargetHouses(houses)) return;
 
   nameInput.value = "";
+  ["targetHouseArea", "targetHousePublicRatio", "targetHouseUnitPrice", "targetHouseNotes"].forEach((id) => {
+    document.getElementById(id).value = "";
+  });
   document.getElementById("targetHouseStatus").textContent = "目標房屋已加入清單。";
   renderTargetHouses();
+}
+
+function optionalTargetHouseNumber(id) {
+  const value = document.getElementById(id).value;
+  return value === "" ? null : Number(value);
 }
 
 function handleTargetHouseAction(event) {
@@ -129,6 +164,11 @@ function handleTargetHouseAction(event) {
   if (button.dataset.action === "load") {
     document.getElementById("housePrice").value = house.price;
     document.getElementById("downPayment").value = house.downPayment;
+    document.getElementById("targetHouseName").value = house.name;
+    document.getElementById("targetHouseArea").value = house.area ?? "";
+    document.getElementById("targetHousePublicRatio").value = house.publicRatio ?? "";
+    document.getElementById("targetHouseNotes").value = house.notes ?? "";
+    updateTargetHouseUnitPrice();
     updateLoanResult();
     saveRememberedInputs();
     document.getElementById("targetHouseStatus").textContent = `已帶入「${house.name}」。`;
@@ -260,6 +300,7 @@ function renderChart(rows) {
     },
     options: {
       responsive: true,
+      maintainAspectRatio: false,
       interaction: { mode: "index", intersect: false },
       scales: {
         y: { title: { display: true, text: "萬元" } },
@@ -305,6 +346,15 @@ function updateLoanAmount() {
   const loanAmount = Math.max(housePrice - downPayment, 0);
   document.getElementById("loanAmount").value = loanAmount;
   return loanAmount;
+}
+
+function updateTargetHouseUnitPrice() {
+  const price = Number.parseFloat(document.getElementById("housePrice").value);
+  const area = Number.parseFloat(document.getElementById("targetHouseArea").value);
+  const unitPrice = document.getElementById("targetHouseUnitPrice");
+  unitPrice.value = Number.isFinite(price) && Number.isFinite(area) && area > 0
+    ? (price / area).toFixed(2)
+    : "";
 }
 
 function updateLoanResult() {
@@ -355,10 +405,13 @@ if (loadRememberedInputs()) {
   document.getElementById("memoryStatus").textContent = "已載入上次儲存的設定。";
 }
 
+updateTargetHouseUnitPrice();
 document.getElementById("calcBtn").addEventListener("click", runCalculation);
 document.getElementById("saveTargetHouseBtn").addEventListener("click", addTargetHouse);
 document.getElementById("targetHouseList").addEventListener("click", handleTargetHouseAction);
 renderTargetHouses();
+document.getElementById("housePrice").addEventListener("input", updateTargetHouseUnitPrice);
+document.getElementById("targetHouseArea").addEventListener("input", updateTargetHouseUnitPrice);
 [...rememberedFieldIds].forEach((id) => {
   document.getElementById(id).addEventListener("input", saveRememberedInputs);
   document.getElementById(id).addEventListener("change", saveRememberedInputs);

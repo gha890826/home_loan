@@ -97,18 +97,22 @@ main {
 }
 
 .target-house-controls {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   align-items: end;
-  flex-wrap: wrap;
   gap: 0.75rem;
 }
 
-.target-house-controls label {
-  flex: 1 1 220px;
+.target-house-controls textarea {
+  resize: vertical;
+}
+
+.target-house-notes {
+  grid-column: 1 / -1;
 }
 
 .target-house-controls button {
-  flex: 0 0 auto;
+  justify-self: start;
 }
 
 .target-house-list {
@@ -142,6 +146,11 @@ main {
   font-size: 0.85rem;
 }
 
+.target-house-details .target-house-notes-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .target-house-actions {
   display: flex;
   gap: 0.5rem;
@@ -164,11 +173,12 @@ label {
   gap: 0.35rem;
 }
 
-input, select {
+input, select, textarea {
   padding: 0.5rem 0.6rem;
   border: 1px solid var(--border);
   border-radius: 6px;
   font-size: 1rem;
+  font-family: inherit;
   color: var(--text);
 }
 
@@ -198,6 +208,11 @@ button:hover {
   align-items: center;
   flex-wrap: wrap;
   gap: 0.75rem 1rem;
+  margin: -0.75rem 0 1.5rem;
+}
+
+#calcBtn {
+  width: 100%;
 }
 
 .memory-status {
@@ -226,6 +241,10 @@ button:hover {
   margin-bottom: 1rem;
 }
 
+.note + .result {
+  margin-top: 1rem;
+}
+
 .result .stat {
   background: #eef4fb;
   border-radius: 8px;
@@ -243,8 +262,24 @@ button:hover {
   color: var(--primary-dark);
 }
 
+.chart-container {
+  position: relative;
+  width: 100%;
+  height: 340px;
+}
+
+@media (max-width: 600px) {
+  .chart-container {
+    height: 300px;
+  }
+}
+
 .table-wrap {
   overflow-x: auto;
+}
+
+.note + .table-wrap {
+  margin-top: 1rem;
 }
 
 table {
@@ -273,4 +308,16 @@ footer {
   color: var(--muted);
   font-size: 0.85rem;
   padding: 1.5rem;
+}
+
+.footer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+}
+
+.footer-actions .memory-status {
+  margin: 0;
 }
