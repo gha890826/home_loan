@@ -1,5 +1,146 @@
 // 房貸與資產成長試算邏輯
 
+const MEMORY_COOKIE = "homeLoanCalculator";
+const MEMORY_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
+const TARGET_HOUSES_STORAGE_KEY = "homeLoanTargetHouses";
+const rememberedFieldIds = [
+  "housePrice", "downPayment", "loanRate", "loanYears", "repayType", "dtiRatio",
+  "currentCash", "currentStock", "monthlyCash", "cashGrowthRate", "monthlyStock",
+  "stockGrowthRate", "simYears",
+];
+
+function loadRememberedInputs() {
+  const cookie = document.cookie
+    .split("; ")
+    .find((entry) => entry.startsWith(`${MEMORY_COOKIE}=`));
+  if (!cookie) return false;
+
+  try {
+    const values = JSON.parse(decodeURIComponent(cookie.slice(MEMORY_COOKIE.length + 1)));
+    rememberedFieldIds.forEach((id) => {
+      if (values[id] !== undefined) document.getElementById(id).value = values[id];
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function saveRememberedInputs() {
+  const values = Object.fromEntries(
+    rememberedFieldIds.map((id) => [id, document.getElementById(id).value])
+  );
+  document.cookie = `${MEMORY_COOKIE}=${encodeURIComponent(JSON.stringify(values))}; Max-Age=${MEMORY_COOKIE_MAX_AGE}; Path=/; SameSite=Lax`;
+  document.getElementById("memoryStatus").textContent = "設定已儲存於此瀏覽器 Cookie。";
+}
+
+function clearRememberedInputs() {
+  document.cookie = `${MEMORY_COOKIE}=; Max-Age=0; Path=/; SameSite=Lax`;
+  document.getElementById("memoryStatus").textContent = "已清除記憶；目前欄位值不變。";
+}
+
+function loadTargetHouses() {
+  try {
+    const houses = JSON.parse(localStorage.getItem(TARGET_HOUSES_STORAGE_KEY) || "[]");
+    return Array.isArray(houses) ? houses : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveTargetHouses(houses) {
+  try {
+    localStorage.setItem(TARGET_HOUSES_STORAGE_KEY, JSON.stringify(houses));
+    return true;
+  } catch {
+    document.getElementById("targetHouseStatus").textContent = "無法儲存清單，請檢查瀏覽器儲存空間設定。";
+    return false;
+  }
+}
+
+function renderTargetHouses() {
+  const list = document.getElementById("targetHouseList");
+  const houses = loadTargetHouses();
+  list.replaceChildren();
+
+  houses.forEach((house, index) => {
+    const item = document.createElement("div");
+    item.className = "target-house-item";
+
+    const details = document.createElement("div");
+    details.className = "target-house-details";
+    const name = document.createElement("strong");
+    name.textContent = house.name;
+    const amounts = document.createElement("span");
+    amounts.textContent = `總價 ${fmt(house.price)} 萬 · 頭期款 ${fmt(house.downPayment)} 萬`;
+    details.append(name, amounts);
+
+    const actions = document.createElement("div");
+    actions.className = "target-house-actions";
+    const loadButton = document.createElement("button");
+    loadButton.type = "button";
+    loadButton.textContent = "帶入";
+    loadButton.dataset.action = "load";
+    loadButton.dataset.index = index;
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.className = "secondary-button";
+    deleteButton.textContent = "刪除";
+    deleteButton.dataset.action = "delete";
+    deleteButton.dataset.index = index;
+    actions.append(loadButton, deleteButton);
+
+    item.append(details, actions);
+    list.append(item);
+  });
+}
+
+function addTargetHouse() {
+  const nameInput = document.getElementById("targetHouseName");
+  const name = nameInput.value.trim();
+  if (!name) {
+    document.getElementById("targetHouseStatus").textContent = "請先輸入目標房屋名稱。";
+    nameInput.focus();
+    return;
+  }
+
+  const houses = loadTargetHouses();
+  houses.push({
+    name,
+    price: parseFloat(document.getElementById("housePrice").value) || 0,
+    downPayment: parseFloat(document.getElementById("downPayment").value) || 0,
+  });
+  if (!saveTargetHouses(houses)) return;
+
+  nameInput.value = "";
+  document.getElementById("targetHouseStatus").textContent = "目標房屋已加入清單。";
+  renderTargetHouses();
+}
+
+function handleTargetHouseAction(event) {
+  const button = event.target.closest("button[data-action]");
+  if (!button) return;
+
+  const houses = loadTargetHouses();
+  const index = Number(button.dataset.index);
+  const house = houses[index];
+  if (!house) return;
+
+  if (button.dataset.action === "load") {
+    document.getElementById("housePrice").value = house.price;
+    document.getElementById("downPayment").value = house.downPayment;
+    updateLoanResult();
+    saveRememberedInputs();
+    document.getElementById("targetHouseStatus").textContent = `已帶入「${house.name}」。`;
+    return;
+  }
+
+  houses.splice(index, 1);
+  if (!saveTargetHouses(houses)) return;
+  document.getElementById("targetHouseStatus").textContent = "目標房屋已從清單移除。";
+  renderTargetHouses();
+}
+
 function fmt(n) {
   return Number(n).toLocaleString("zh-Hant-TW", { maximumFractionDigits: 1 });
 }
@@ -210,7 +351,19 @@ function runCalculation() {
   renderYearlyTable(rows);
 }
 
+if (loadRememberedInputs()) {
+  document.getElementById("memoryStatus").textContent = "已載入上次儲存的設定。";
+}
+
 document.getElementById("calcBtn").addEventListener("click", runCalculation);
+document.getElementById("saveTargetHouseBtn").addEventListener("click", addTargetHouse);
+document.getElementById("targetHouseList").addEventListener("click", handleTargetHouseAction);
+renderTargetHouses();
+[...rememberedFieldIds].forEach((id) => {
+  document.getElementById(id).addEventListener("input", saveRememberedInputs);
+  document.getElementById(id).addEventListener("change", saveRememberedInputs);
+});
+document.getElementById("clearMemoryBtn").addEventListener("click", clearRememberedInputs);
 ["housePrice", "downPayment", "loanRate", "loanYears", "dtiRatio"].forEach((id) =>
   document.getElementById(id).addEventListener("input", updateLoanResult)
 );

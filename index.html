@@ -43,6 +43,17 @@
         <input type="number" id="dtiRatio" value="33" min="1" max="100" step="1">
       </label>
     </div>
+    <div class="target-houses">
+      <h3>快速帶入房屋</h3>
+      <div class="target-house-controls">
+        <label>目標房屋名稱
+          <input type="text" id="targetHouseName" maxlength="40" placeholder="例如：新北兩房">
+        </label>
+        <button id="saveTargetHouseBtn" type="button">加入目標清單</button>
+      </div>
+      <p id="targetHouseStatus" class="memory-status" aria-live="polite">將目前房屋總價與頭期款加入清單。</p>
+      <div id="targetHouseList" class="target-house-list" aria-live="polite"></div>
+    </div>
     <div class="result" id="loanResult"></div>
   </section>
 
@@ -79,7 +90,11 @@
         <input type="number" id="simYears" value="30" min="1" step="1">
       </label>
     </div>
-    <button id="calcBtn">開始試算</button>
+    <div class="actions">
+      <button id="calcBtn">開始試算</button>
+      <p id="memoryStatus" class="memory-status" aria-live="polite">設定會自動儲存在此瀏覽器 Cookie。</p>
+      <button id="clearMemoryBtn" class="secondary-button" type="button">清除記憶</button>
+    </div>
   </section>
 
   <section class="card">

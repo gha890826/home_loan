@@ -84,6 +84,78 @@ main {
   margin: 1rem 0;
 }
 
+.target-houses {
+  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+  margin: 1rem 0;
+}
+
+.target-houses h3 {
+  margin: 0 0 0.75rem;
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.target-house-controls {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.target-house-controls label {
+  flex: 1 1 220px;
+}
+
+.target-house-controls button {
+  flex: 0 0 auto;
+}
+
+.target-house-list {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.target-house-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.6rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.65rem 0.75rem;
+}
+
+.target-house-details {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.target-house-details strong {
+  color: var(--text);
+}
+
+.target-house-details span {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.target-house-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.target-house-actions button {
+  padding: 0.45rem 0.7rem;
+  font-size: 0.9rem;
+}
+
+.target-house-actions .secondary-button {
+  padding: 0.4rem 0.65rem;
+}
+
 label {
   display: flex;
   flex-direction: column;
@@ -119,6 +191,32 @@ button {
 
 button:hover {
   background: var(--primary-dark);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+}
+
+.memory-status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.secondary-button {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  padding: 0.55rem 0.85rem;
+  font-size: 0.9rem;
+}
+
+.secondary-button:hover {
+  background: #f0f4f8;
+  color: var(--text);
 }
 
 .result {
