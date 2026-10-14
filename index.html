@@ -3,19 +3,207 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>房貸與資產成長試算</title>
+<title>看房、房貸與資產試算</title>
 <link rel="stylesheet" href="style.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 </head>
 <body>
 <header>
-  <h1>房貸與資產成長試算</h1>
-  <p class="subtitle">房貸基本計算 × 現金／股票資產成長模擬</p>
+  <h1>看房、房貸與資產試算</h1>
+  <p class="subtitle">看房、房貸與資產成長一體試算</p>
 </header>
 
 <main>
+  <section class="card viewing-card">
+    <div class="section-heading">
+      <div>
+        <h2>看房紀錄、房貸試算與物件比較</h2>
+        <p class="note">資料儲存在目前瀏覽器。跨裝置請匯出 JSON 再匯入；相同 ID 以較新的更新時間為準。刪除只會加上標記，紀錄仍保留在 JSON 中。</p>
+      </div>
+      <div class="data-actions">
+        <button id="exportViewingBtn" type="button" class="secondary-button">匯出 JSON</button>
+        <button id="importViewingBtn" type="button" class="secondary-button">匯入 JSON</button>
+        <input id="importViewingFile" type="file" accept=".json,application/json" hidden>
+      </div>
+    </div>
+
+    <form id="viewingForm">
+      <input id="editingPropertyId" type="hidden">
+      <input id="editingVisitId" type="hidden">
+      <h3 id="viewFormTitle">新增看房物件</h3>
+      <fieldset class="form-section">
+        <legend>物件資訊</legend>
+        <div class="grid viewing-grid">
+          <label>建案名稱／房屋名稱
+            <input id="viewName" type="text" maxlength="100" required>
+          </label>
+          <label>建設公司
+            <input id="viewDeveloper" type="text" maxlength="100">
+          </label>
+          <label>類型
+            <select id="viewType" required>
+              <option value="" disabled selected>選擇類型</option>
+              <option value="預售屋">預售屋</option>
+              <option value="新成屋">新成屋</option>
+              <option value="10年屋">10年屋</option>
+              <option value="20年屋">20年屋</option>
+            </select>
+          </label>
+          <label>追蹤狀態
+            <select id="viewStatus">
+              <option value="待看屋">待看屋</option>
+              <option value="已看屋">已看屋</option>
+              <option value="追蹤中">追蹤中</option>
+              <option value="已排除">已排除</option>
+              <option value="售出">售出</option>
+            </select>
+          </label>
+          <label>位置概述
+            <input id="viewLocation" type="text" maxlength="150" placeholder="例如：新北市板橋區、近捷運站">
+          </label>
+          <label>地址
+            <input id="viewAddress" type="text" maxlength="200">
+          </label>
+          <label>樓層（本戶／總樓層）
+            <input id="viewFloor" type="text" maxlength="30" placeholder="例如：8／15 樓">
+          </label>
+          <label>整體評價
+            <select id="viewRating">
+              <option value="">未評分</option>
+              <option value="1">1 星</option>
+              <option value="2">2 星</option>
+              <option value="3">3 星</option>
+              <option value="4">4 星</option>
+              <option value="5">5 星</option>
+            </select>
+          </label>
+        </div>
+      </fieldset>
+      <fieldset class="form-section">
+        <legend>坪數與價格</legend>
+        <div class="grid viewing-grid">
+          <label>權狀坪數（不含車位）
+            <input id="viewTitleArea" type="number" min="0" step="0.01">
+          </label>
+          <label>公設比（%）
+            <input id="viewPublicRatio" type="number" min="0" max="100" step="0.01">
+          </label>
+          <label>實際坪數
+            <input id="viewActualArea" type="number" readonly>
+          </label>
+          <label>總價（萬元，不含車位）
+            <input id="viewPrice" type="number" min="0" step="0.1">
+          </label>
+          <label>單價（萬元／坪）
+            <input id="viewUnitPrice" type="number" readonly>
+          </label>
+        </div>
+      </fieldset>
+      <fieldset class="form-section">
+        <legend>車位與管理費</legend>
+        <div class="grid viewing-grid">
+          <label>車位形式／位置
+            <input id="viewParkingDescription" type="text" maxlength="100" placeholder="例如：B2 坡道平面">
+          </label>
+          <label>車位價格（萬元）
+            <input id="viewParkingPrice" type="number" min="0" step="0.1">
+          </label>
+          <label>車位長（公分）
+            <input id="viewParkingLength" type="number" min="0" step="1">
+          </label>
+          <label>車位寬（公分）
+            <input id="viewParkingWidth" type="number" min="0" step="1">
+          </label>
+          <label>管理費（元／坪／月）
+            <input id="viewManagementFeePerPing" type="number" min="0" step="0.1">
+          </label>
+          <label>管理費總額（元／月）
+            <input id="viewManagementFeeMonthly" type="number" readonly>
+          </label>
+        </div>
+      </fieldset>
+      <fieldset class="form-section">
+        <legend>社區資訊</legend>
+        <div class="grid viewing-grid">
+          <label>一層戶數
+            <input id="viewHouseholdsPerFloor" type="number" min="0" step="1">
+          </label>
+          <label>電梯數
+            <input id="viewElevators" type="number" min="0" step="1">
+          </label>
+        </div>
+      </fieldset>
+      <fieldset class="loan-fields">
+        <legend>本物件房貸試算</legend>
+        <div class="grid viewing-grid">
+          <label>頭期款（萬元）
+            <input id="viewDownPayment" type="number" min="0" step="0.1" value="320">
+          </label>
+          <label>貸款金額（萬元）
+            <input id="viewLoanAmount" type="number" readonly>
+          </label>
+          <label>貸款年利率（%）
+            <input id="viewLoanRate" type="number" min="0" step="0.01" value="2.3">
+          </label>
+          <label>貸款年限（年）
+            <input id="viewLoanYears" type="number" min="1" step="1" value="30">
+          </label>
+          <label>還款方式
+            <select id="viewRepayType">
+              <option value="equalPayment">本息平均攤還</option>
+              <option value="equalPrincipal">本金平均攤還</option>
+            </select>
+          </label>
+          <label>房貸負擔比上限（%）
+            <input id="viewDtiRatio" type="number" min="1" max="100" step="1" value="33">
+          </label>
+        </div>
+        <div class="result" id="loanResult"></div>
+      </fieldset>
+      <fieldset class="form-section visit-section">
+        <legend>看屋紀錄</legend>
+        <div class="visit-entry-fields">
+          <label>看房時間
+            <input id="viewVisitTime" type="datetime-local" required>
+          </label>
+          <label>現場觀察與優缺點（備註）
+            <textarea id="viewNotes" rows="3" maxlength="3000" placeholder="可記錄每次看屋時注意到的事項"></textarea>
+          </label>
+        </div>
+      </fieldset>
+      <div class="form-actions">
+        <button id="saveViewingBtn" type="submit">新增物件</button>
+        <button id="cancelViewingEditBtn" type="button" class="secondary-button" hidden>取消編輯</button>
+      </div>
+    </form>
+    <p id="viewingStatus" class="memory-status" aria-live="polite">尚未新增看房紀錄。</p>
+
+    <h3 class="subsection-title">物件清單</h3>
+    <div class="table-wrap">
+      <table id="viewingTable" class="viewing-table">
+        <thead>
+          <tr>
+            <th>比較</th><th>物件</th><th>狀態</th><th>類型</th><th>樓層</th>
+            <th>總價（萬）</th><th>單價（萬／坪）</th><th>實際坪數</th>
+            <th>管理費／月</th><th>首月月付（萬）</th><th>總利息（萬）</th>
+            <th>看屋備註</th><th>操作</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="comparison-section">
+      <h3>物件比較</h3>
+      <p id="comparisonEmpty" class="memory-status">勾選物件清單中的「比較」欄位以加入比較。</p>
+      <div class="table-wrap">
+        <table id="comparisonTable" class="comparison-table"></table>
+      </div>
+    </div>
+  </section>
+
   <section class="card">
-    <h2>1. 現有資產</h2>
+    <h2>資產成長假設：現有資產</h2>
     <p class="note">說明：填入試算起始當下已持有的現金與股票市值（已扣除頭期款後的餘額），做為資產成長模擬的起始基準。</p>
     <div class="grid">
       <label>現有現金（萬元）
@@ -28,7 +216,7 @@
   </section>
 
   <section class="card">
-    <h2>2. 每月投入與成長率假設</h2>
+    <h2>資產成長假設：每月投入與成長率</h2>
     <p class="note">說明：每月現金存款與定期定額投入股票會持續累加，並依各自年化成長率複利成長（月利率 = 年化成長率 ÷ 12）。公式為 <code>本月餘額 = 上月餘額 × (1 + 月成長率) + 本月投入</code>，逐月模擬至試算年限結束。</p>
     <div class="grid">
       <label>每月現金存款（萬元）
@@ -49,68 +237,18 @@
     </div>
   </section>
 
-  <section class="card">
-    <h2>3. 房貸基本計算</h2>
-    <p class="note">說明：貸款金額 = 房屋總價 − 頭期款；月付金依還款方式計算。<br>本息平均攤還:  每月還款金額固定，公式為 <code>月付金 = 貸款金額 × 月利率 × (1+月利率)^期數 ÷ ((1+月利率)^期數 − 1)</code>。<br>本金平均攤還: 每月償還本金固定，利息隨剩餘本金遞減，月付金隨時間下降。<br>需求年薪估算 = 首月月付金 × 12 ÷ 房貸負擔比上限，代表在該負擔比下應具備的最低年薪。</p>
-    <div class="grid">
-      <label>房屋總價（萬元）
-        <input type="number" id="housePrice" value="1600" min="0" step="1">
-      </label>
-      <label>頭期款（萬元）
-        <input type="number" id="downPayment" value="320" min="0" step="1">
-      </label>
-      <label>貸款金額（萬元）
-        <input type="number" id="loanAmount" value="1280" min="0" step="1" readonly>
-      </label>
-      <label>貸款年利率（%）
-        <input type="number" id="loanRate" value="2.3" min="0" step="0.01">
-      </label>
-      <label>貸款年限（年）
-        <input type="number" id="loanYears" value="30" min="1" step="1">
-      </label>
-      <label>還款方式
-        <select id="repayType">
-          <option value="equalPayment">本息平均攤還</option>
-          <option value="equalPrincipal">本金平均攤還</option>
-        </select>
-      </label>
-      <label>房貸負擔比上限（%）
-        <input type="number" id="dtiRatio" value="33" min="1" max="100" step="1">
-      </label>
-    </div>
-    <div class="target-houses">
-      <h3>快速帶入房屋</h3>
-      <div class="target-house-controls">
-        <label>目標房屋名稱
-          <input type="text" id="targetHouseName" maxlength="40" placeholder="例如：新北兩房">
-        </label>
-        <label>坪數
-          <input type="number" id="targetHouseArea" min="0" step="0.1" placeholder="例如：32">
-        </label>
-        <label>公設比（%）
-          <input type="number" id="targetHousePublicRatio" min="0" max="100" step="0.1" placeholder="例如：33">
-        </label>
-        <label>單價（萬元／坪）
-          <input type="number" id="targetHouseUnitPrice" min="0" step="0.01" placeholder="自動計算" readonly>
-        </label>
-        <label class="target-house-notes">備註
-          <textarea id="targetHouseNotes" rows="2" maxlength="300" placeholder="樓層、屋齡、看屋日期等"></textarea>
-        </label>
-        <button id="saveTargetHouseBtn" type="button">加入目標清單</button>
-      </div>
-      <p id="targetHouseStatus" class="memory-status" aria-live="polite">將目前房屋總價與頭期款加入清單。</p>
-      <div id="targetHouseList" class="target-house-list" aria-live="polite"></div>
-    </div>
-    <div class="result" id="loanResult"></div>
-  </section>
-
   <div class="actions">
+    <label>資產成長試算物件
+      <select id="simulationProperty">
+        <option value="form">目前表單資料</option>
+      </select>
+    </label>
     <button id="calcBtn">開始試算</button>
   </div>
 
   <section class="card">
     <h2>試算結果</h2>
-    <p class="note">說明：淨資產 = 累積現金 + 累積股票 + 房屋價值 − 房貸剩餘本金（房屋價值採房屋總價，暫不考慮增值）。折線圖與下方逐年明細皆以此邏輯逐年（每 12 個月）取樣呈現。</p>
+    <p class="note">資產成長試算使用上方選取物件的房價與貸款條件；選擇「目前表單資料」則使用看房表單目前的輸入。淨資產 = 累積現金 + 累積股票 + 房屋價值 − 房貸剩餘本金，房屋價值暫不考慮增值。</p>
     <div class="result" id="summaryResult"></div>
     <div class="chart-container">
       <canvas id="chart"></canvas>
@@ -137,6 +275,23 @@
     </div>
   </section>
 </main>
+
+<dialog id="visitDialog" class="visit-dialog">
+  <form id="visitForm">
+    <input id="visitPropertyId" type="hidden">
+    <h2>新增看屋紀錄</h2>
+    <label>看房時間
+      <input id="visitDateTime" type="datetime-local" required>
+    </label>
+    <label>現場觀察與優缺點（備註）
+      <textarea id="visitNotes" rows="5" maxlength="3000"></textarea>
+    </label>
+    <div class="form-actions">
+      <button type="submit">儲存紀錄</button>
+      <button id="cancelVisitBtn" type="button" class="secondary-button">取消</button>
+    </div>
+  </form>
+</dialog>
 
 <footer>
   <p>本工具僅供試算參考，實際貸款與投資結果請以銀行與市場實際狀況為準。</p>

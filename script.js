@@ -2,9 +2,7 @@
 
 const MEMORY_COOKIE = "homeLoanCalculator";
 const MEMORY_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
-const TARGET_HOUSES_STORAGE_KEY = "homeLoanTargetHouses";
 const rememberedFieldIds = [
-  "housePrice", "downPayment", "loanRate", "loanYears", "repayType", "dtiRatio",
   "currentCash", "currentStock", "monthlyCash", "cashGrowthRate", "monthlyStock",
   "stockGrowthRate", "simYears",
 ];
@@ -41,144 +39,575 @@ function clearRememberedInputs() {
 
 function loadTargetHouses() {
   try {
-    const houses = JSON.parse(localStorage.getItem(TARGET_HOUSES_STORAGE_KEY) || "[]");
+    const houses = JSON.parse(localStorage.getItem("homeLoanTargetHouses") || "[]");
     return Array.isArray(houses) ? houses : [];
   } catch {
     return [];
   }
 }
 
-function saveTargetHouses(houses) {
+const VIEWING_STORAGE_KEY = "homeLoanViewingData";
+const LEGACY_TARGETS_MIGRATED_KEY = "homeLoanTargetsMigratedToViewingRecords";
+const VIEWING_SCHEMA_VERSION = 1;
+const DELETED_TAG = "deleted";
+const COMPARISON_FIELDS = [
+  ["type", "類型"], ["developer", "建設公司"], ["overallRating", "整體評價"], ["location", "位置概述"],
+  ["address", "地址"], ["floor", "樓層"], ["titleArea", "權狀坪數"],
+  ["publicRatio", "公設比"], ["actualArea", "實際坪數"], ["unitPrice", "單價"],
+  ["price", "總價"], ["parkingPrice", "車位價格"], ["parkingDescription", "車位形式／位置"],
+  ["parkingSize", "車位尺寸"],
+  ["managementFeePerPing", "管理費／坪月"], ["managementFeeMonthly", "管理費／月"],
+  ["householdsPerFloor", "一層戶數"], ["elevators", "電梯數"],
+  ["downPayment", "頭期款"], ["loanAmount", "貸款金額"], ["loanRate", "貸款年利率"],
+  ["loanYears", "貸款年限"], ["repayType", "還款方式"], ["dtiRatio", "房貸負擔比上限"],
+  ["monthlyPayment", "首月月付金"], ["totalPayment", "總繳金額"],
+  ["totalInterest", "總利息"], ["requiredAnnualSalary", "需求年薪估算"],
+];
+
+function createRecordId() {
+  return globalThis.crypto?.randomUUID?.() ?? `record-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function currentTimestamp() {
+  return new Date().toISOString();
+}
+
+function localDateTimeValue() {
+  const date = new Date();
+  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+  return date.toISOString().slice(0, 16);
+}
+
+function loadViewingData() {
   try {
-    localStorage.setItem(TARGET_HOUSES_STORAGE_KEY, JSON.stringify(houses));
+    const data = JSON.parse(localStorage.getItem(VIEWING_STORAGE_KEY) || "null");
+    if (data?.schemaVersion === VIEWING_SCHEMA_VERSION && Array.isArray(data.properties) && Array.isArray(data.visits)) {
+      return data;
+    }
+  } catch {
+    // Start with an empty data set if stored data is malformed.
+  }
+  return { schemaVersion: VIEWING_SCHEMA_VERSION, properties: [], visits: [] };
+}
+
+function saveViewingData(data) {
+  try {
+    localStorage.setItem(VIEWING_STORAGE_KEY, JSON.stringify(data));
     return true;
   } catch {
-    document.getElementById("targetHouseStatus").textContent = "無法儲存清單，請檢查瀏覽器儲存空間設定。";
+    setViewingStatus("儲存失敗，請檢查瀏覽器儲存空間。", true);
     return false;
   }
 }
 
-function renderTargetHouses() {
-  const list = document.getElementById("targetHouseList");
-  const houses = loadTargetHouses();
-  list.replaceChildren();
-
-  houses.forEach((house, index) => {
-    const item = document.createElement("div");
-    item.className = "target-house-item";
-
-    const details = document.createElement("div");
-    details.className = "target-house-details";
-    const name = document.createElement("strong");
-    name.textContent = house.name;
-    const amounts = document.createElement("span");
-    amounts.textContent = `總價 ${fmt(house.price)} 萬 · 頭期款 ${fmt(house.downPayment)} 萬`;
-    details.append(name, amounts);
-
-    const features = [];
-    if (house.area !== undefined && house.area !== null && house.area !== "") {
-      features.push(`坪數 ${fmt(house.area)} 坪`);
-    }
-    if (house.publicRatio !== undefined && house.publicRatio !== null && house.publicRatio !== "") {
-      features.push(`公設比 ${fmt(house.publicRatio)}%`);
-    }
-    if (house.unitPrice !== undefined && house.unitPrice !== null && house.unitPrice !== "") {
-      const unitPrice = Number(house.area) > 0 ? house.price / house.area : house.unitPrice;
-      features.push(`單價 ${Number(unitPrice).toLocaleString("zh-Hant-TW", { maximumFractionDigits: 2 })} 萬／坪`);
-    }
-    if (features.length) {
-      const featureDetails = document.createElement("span");
-      featureDetails.textContent = features.join(" · ");
-      details.append(featureDetails);
-    }
-    if (house.notes) {
-      const notes = document.createElement("span");
-      notes.className = "target-house-notes-text";
-      notes.textContent = `備註：${house.notes}`;
-      details.append(notes);
-    }
-
-    const actions = document.createElement("div");
-    actions.className = "target-house-actions";
-    const loadButton = document.createElement("button");
-    loadButton.type = "button";
-    loadButton.textContent = "帶入";
-    loadButton.dataset.action = "load";
-    loadButton.dataset.index = index;
-    const deleteButton = document.createElement("button");
-    deleteButton.type = "button";
-    deleteButton.className = "secondary-button";
-    deleteButton.textContent = "刪除";
-    deleteButton.dataset.action = "delete";
-    deleteButton.dataset.index = index;
-    actions.append(loadButton, deleteButton);
-
-    item.append(details, actions);
-    list.append(item);
-  });
+function setViewingStatus(message, isError = false) {
+  const status = document.getElementById("viewingStatus");
+  if (!status) return;
+  status.textContent = message;
+  status.classList.toggle("error-status", isError);
 }
 
-function addTargetHouse() {
-  const nameInput = document.getElementById("targetHouseName");
-  const name = nameInput.value.trim();
-  if (!name) {
-    document.getElementById("targetHouseStatus").textContent = "請先輸入目標房屋名稱。";
-    nameInput.focus();
+function isDeletedRecord(record) {
+  return Array.isArray(record.tags) && record.tags.includes(DELETED_TAG);
+}
+
+function makeRecord(fields) {
+  const timestamp = currentTimestamp();
+  return { id: createRecordId(), createdAt: timestamp, updatedAt: timestamp, tags: [], ...fields };
+}
+
+function migrateLegacyTargetHouses() {
+  if (localStorage.getItem(LEGACY_TARGETS_MIGRATED_KEY) === "1") return;
+  const legacyHouses = loadTargetHouses();
+  if (!legacyHouses.length) {
+    localStorage.setItem(LEGACY_TARGETS_MIGRATED_KEY, "1");
     return;
   }
 
-  const houses = loadTargetHouses();
-  houses.push({
-    name,
-    price: parseFloat(document.getElementById("housePrice").value) || 0,
-    downPayment: parseFloat(document.getElementById("downPayment").value) || 0,
-    area: optionalTargetHouseNumber("targetHouseArea"),
-    publicRatio: optionalTargetHouseNumber("targetHousePublicRatio"),
-    unitPrice: optionalTargetHouseNumber("targetHouseUnitPrice"),
-    notes: document.getElementById("targetHouseNotes").value.trim(),
+  const data = loadViewingData();
+  legacyHouses.forEach((house) => {
+    const price = Number(house.price) || 0;
+    const titleArea = house.area === null || house.area === undefined ? null : Number(house.area);
+    const publicRatio = house.publicRatio === null || house.publicRatio === undefined ? null : Number(house.publicRatio);
+    const downPayment = house.downPayment === null || house.downPayment === undefined ? null : Number(house.downPayment);
+    const property = makeRecord({
+      name: house.name || "未命名物件",
+      developer: "",
+      type: "",
+      status: "待看屋",
+      location: "",
+      address: "",
+      floor: "",
+      overallRating: null,
+      titleArea,
+      publicRatio,
+      actualArea: titleArea !== null && publicRatio !== null ? titleArea * (1 - publicRatio / 100) : null,
+      price,
+      parkingPrice: null,
+      unitPrice: titleArea > 0 ? price / titleArea : null,
+      parkingDescription: "",
+      parkingLengthCm: null,
+      parkingWidthCm: null,
+      managementFeePerPing: null,
+      managementFeeMonthly: null,
+      householdsPerFloor: null,
+      elevators: null,
+      downPayment,
+      loanAmount: downPayment === null ? null : Math.max(price - downPayment, 0),
+      loanRate: 2.3,
+      loanYears: 30,
+      repayType: "equalPayment",
+      dtiRatio: 33,
+    });
+    data.properties.push(property);
+    if (house.notes) {
+      data.visits.push(makeRecord({ propertyId: property.id, visitedAt: "", notes: house.notes }));
+    }
   });
-  if (!saveTargetHouses(houses)) return;
 
-  nameInput.value = "";
-  ["targetHouseArea", "targetHousePublicRatio", "targetHouseUnitPrice", "targetHouseNotes"].forEach((id) => {
-    document.getElementById(id).value = "";
-  });
-  document.getElementById("targetHouseStatus").textContent = "目標房屋已加入清單。";
-  renderTargetHouses();
+  if (saveViewingData(data)) {
+    localStorage.setItem(LEGACY_TARGETS_MIGRATED_KEY, "1");
+    setViewingStatus(`已將舊版目標清單中的 ${legacyHouses.length} 筆資料轉入物件紀錄。`);
+  }
 }
 
-function optionalTargetHouseNumber(id) {
+function numericField(id) {
   const value = document.getElementById(id).value;
   return value === "" ? null : Number(value);
 }
 
-function handleTargetHouseAction(event) {
-  const button = event.target.closest("button[data-action]");
-  if (!button) return;
+function calculateViewingFields() {
+  const titleArea = numericField("viewTitleArea");
+  const publicRatio = numericField("viewPublicRatio");
+  const price = numericField("viewPrice");
+  const actualArea = titleArea !== null && publicRatio !== null
+    ? titleArea * (1 - publicRatio / 100)
+    : null;
+  const unitPrice = titleArea > 0 && price !== null ? price / titleArea : null;
+  const feePerPing = numericField("viewManagementFeePerPing");
+  const managementFeeMonthly = titleArea !== null && feePerPing !== null
+    ? titleArea * feePerPing
+    : null;
+  document.getElementById("viewActualArea").value = actualArea === null ? "" : actualArea.toFixed(2);
+  document.getElementById("viewUnitPrice").value = unitPrice === null ? "" : unitPrice.toFixed(2);
+  document.getElementById("viewManagementFeeMonthly").value = managementFeeMonthly === null
+    ? ""
+    : managementFeeMonthly.toFixed(0);
+}
 
-  const houses = loadTargetHouses();
-  const index = Number(button.dataset.index);
-  const house = houses[index];
-  if (!house) return;
+function readPropertyForm() {
+  const parkingLength = numericField("viewParkingLength");
+  const parkingWidth = numericField("viewParkingWidth");
+  return {
+    name: document.getElementById("viewName").value.trim(),
+    developer: document.getElementById("viewDeveloper").value.trim(),
+    type: document.getElementById("viewType").value,
+    status: document.getElementById("viewStatus").value,
+    location: document.getElementById("viewLocation").value.trim(),
+    address: document.getElementById("viewAddress").value.trim(),
+    floor: document.getElementById("viewFloor").value.trim(),
+    overallRating: numericField("viewRating"),
+    titleArea: numericField("viewTitleArea"),
+    publicRatio: numericField("viewPublicRatio"),
+    actualArea: numericField("viewActualArea"),
+    price: numericField("viewPrice"),
+    parkingPrice: numericField("viewParkingPrice"),
+    unitPrice: numericField("viewUnitPrice"),
+    parkingDescription: document.getElementById("viewParkingDescription").value.trim(),
+    parkingLengthCm: parkingLength,
+    parkingWidthCm: parkingWidth,
+    managementFeePerPing: numericField("viewManagementFeePerPing"),
+    managementFeeMonthly: numericField("viewManagementFeeMonthly"),
+    householdsPerFloor: numericField("viewHouseholdsPerFloor"),
+    elevators: numericField("viewElevators"),
+    downPayment: numericField("viewDownPayment"),
+    loanAmount: numericField("viewLoanAmount"),
+    loanRate: numericField("viewLoanRate"),
+    loanYears: numericField("viewLoanYears"),
+    repayType: document.getElementById("viewRepayType").value,
+    dtiRatio: numericField("viewDtiRatio"),
+  };
+}
 
-  if (button.dataset.action === "load") {
-    document.getElementById("housePrice").value = house.price;
-    document.getElementById("downPayment").value = house.downPayment;
-    document.getElementById("targetHouseName").value = house.name;
-    document.getElementById("targetHouseArea").value = house.area ?? "";
-    document.getElementById("targetHousePublicRatio").value = house.publicRatio ?? "";
-    document.getElementById("targetHouseNotes").value = house.notes ?? "";
-    updateTargetHouseUnitPrice();
-    updateLoanResult();
-    saveRememberedInputs();
-    document.getElementById("targetHouseStatus").textContent = `已帶入「${house.name}」。`;
+function resetViewingForm() {
+  document.getElementById("viewingForm").reset();
+  document.getElementById("editingPropertyId").value = "";
+  document.getElementById("editingVisitId").value = "";
+  document.getElementById("viewFormTitle").textContent = "新增看房物件";
+  document.getElementById("saveViewingBtn").textContent = "新增物件";
+  document.getElementById("cancelViewingEditBtn").hidden = true;
+  document.getElementById("viewVisitTime").value = localDateTimeValue();
+  calculateViewingFields();
+  updateLoanResult();
+}
+
+function saveViewingProperty(event) {
+  event.preventDefault();
+  calculateViewingFields();
+  updateLoanResult();
+  const data = loadViewingData();
+  const propertyId = document.getElementById("editingPropertyId").value;
+  const visitId = document.getElementById("editingVisitId").value;
+  const timestamp = currentTimestamp();
+  const fields = readPropertyForm();
+  let preferredSimulationId = propertyId;
+  if (!fields.name) {
+    setViewingStatus("請輸入建案名稱或房屋名稱。", true);
     return;
   }
 
-  houses.splice(index, 1);
-  if (!saveTargetHouses(houses)) return;
-  document.getElementById("targetHouseStatus").textContent = "目標房屋已從清單移除。";
-  renderTargetHouses();
+  if (propertyId) {
+    const property = data.properties.find((item) => item.id === propertyId);
+    if (!property) return;
+    Object.assign(property, fields, { updatedAt: timestamp });
+    const visit = data.visits.find((item) => item.id === visitId);
+    if (visit) {
+      visit.visitedAt = document.getElementById("viewVisitTime").value;
+      visit.notes = document.getElementById("viewNotes").value.trim();
+      visit.updatedAt = timestamp;
+    }
+    setViewingStatus("物件與看屋紀錄已更新。");
+  } else {
+    const property = makeRecord(fields);
+    data.properties.push(property);
+    preferredSimulationId = property.id;
+    data.visits.push(makeRecord({
+      propertyId: property.id,
+      visitedAt: document.getElementById("viewVisitTime").value,
+      notes: document.getElementById("viewNotes").value.trim(),
+    }));
+    setViewingStatus("物件與首次看屋紀錄已新增。");
+  }
+
+  if (!saveViewingData(data)) return;
+  resetViewingForm();
+  renderViewingProperties(preferredSimulationId);
+  runCalculation();
+}
+
+function editViewingProperty(propertyId) {
+  const data = loadViewingData();
+  const property = data.properties.find((item) => item.id === propertyId && !isDeletedRecord(item));
+  if (!property) return;
+  const latestVisit = data.visits
+    .filter((visit) => visit.propertyId === propertyId && !isDeletedRecord(visit))
+    .sort((left, right) => Date.parse(right.visitedAt || right.updatedAt) - Date.parse(left.visitedAt || left.updatedAt))[0];
+  const loanInputs = loanInputsForProperty(property);
+
+  const fields = {
+    viewName: property.name, viewDeveloper: property.developer, viewType: property.type,
+    viewStatus: property.status, viewLocation: property.location, viewAddress: property.address,
+    viewFloor: property.floor, viewRating: property.overallRating, viewTitleArea: property.titleArea,
+    viewPublicRatio: property.publicRatio, viewPrice: property.price, viewParkingPrice: property.parkingPrice,
+    viewParkingDescription: property.parkingDescription,
+    viewParkingLength: property.parkingLengthCm, viewParkingWidth: property.parkingWidthCm,
+    viewManagementFeePerPing: property.managementFeePerPing,
+    viewHouseholdsPerFloor: property.householdsPerFloor, viewElevators: property.elevators,
+    viewDownPayment: loanInputs.downPayment, viewLoanRate: loanInputs.loanRate,
+    viewLoanYears: loanInputs.loanYears, viewRepayType: loanInputs.repayType,
+    viewDtiRatio: loanInputs.dtiRatio,
+  };
+  Object.entries(fields).forEach(([id, value]) => {
+    document.getElementById(id).value = value ?? "";
+  });
+  document.getElementById("editingPropertyId").value = property.id;
+  document.getElementById("editingVisitId").value = latestVisit?.id ?? "";
+  document.getElementById("viewVisitTime").value = latestVisit?.visitedAt ?? "";
+  document.getElementById("viewNotes").value = latestVisit?.notes ?? "";
+  document.getElementById("viewFormTitle").textContent = "編輯物件與最近一次看屋紀錄";
+  document.getElementById("saveViewingBtn").textContent = "儲存修改";
+  document.getElementById("cancelViewingEditBtn").hidden = false;
+  calculateViewingFields();
+  updateLoanResult();
+  document.getElementById("viewingForm").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function softDeleteRecord(collection, id) {
+  const record = collection.find((item) => item.id === id);
+  if (!record || isDeletedRecord(record)) return;
+  record.tags = [...new Set([...(record.tags || []), DELETED_TAG])];
+  record.updatedAt = currentTimestamp();
+}
+
+function softDeleteProperty(propertyId) {
+  if (!window.confirm("將此物件標記為刪除？匯出 JSON 後仍可手動復原。")) return;
+  const data = loadViewingData();
+  softDeleteRecord(data.properties, propertyId);
+  if (saveViewingData(data)) {
+    setViewingStatus("物件已標記刪除；匯入時仍會保留此標記。");
+    renderViewingProperties();
+  }
+}
+
+function addViewingVisit(propertyId) {
+  const dialog = document.getElementById("visitDialog");
+  document.getElementById("visitPropertyId").value = propertyId;
+  document.getElementById("visitDateTime").value = localDateTimeValue();
+  document.getElementById("visitNotes").value = "";
+  dialog.showModal();
+}
+
+function saveViewingVisit(event) {
+  event.preventDefault();
+  const data = loadViewingData();
+  const propertyId = document.getElementById("visitPropertyId").value;
+  if (!data.properties.some((item) => item.id === propertyId && !isDeletedRecord(item))) return;
+  data.visits.push(makeRecord({
+    propertyId,
+    visitedAt: document.getElementById("visitDateTime").value,
+    notes: document.getElementById("visitNotes").value.trim(),
+  }));
+  if (!saveViewingData(data)) return;
+  document.getElementById("visitDialog").close();
+  setViewingStatus("新的看屋備註已新增。");
+  renderViewingProperties();
+}
+
+function renderViewingProperties(preferredSimulationId = "") {
+  const data = loadViewingData();
+  const tbody = document.querySelector("#viewingTable tbody");
+  const visibleProperties = data.properties.filter((property) => !isDeletedRecord(property));
+  tbody.replaceChildren();
+
+  visibleProperties.forEach((property) => {
+    const loanMetrics = calculateLoanMetrics(loanInputsForProperty(property));
+    const visits = data.visits
+      .filter((visit) => visit.propertyId === property.id && !isDeletedRecord(visit))
+      .sort((left, right) => Date.parse(right.visitedAt || right.createdAt) - Date.parse(left.visitedAt || left.createdAt));
+    const row = document.createElement("tr");
+    const compareCell = document.createElement("td");
+    const compareCheckbox = document.createElement("input");
+    compareCheckbox.type = "checkbox";
+    compareCheckbox.className = "compare-checkbox";
+    compareCheckbox.value = property.id;
+    compareCheckbox.setAttribute("aria-label", `比較：${property.name}`);
+    compareCell.append(compareCheckbox);
+
+    const nameCell = document.createElement("td");
+    const name = document.createElement("strong");
+    name.textContent = property.name || "未命名物件";
+    const metadata = document.createElement("span");
+    metadata.className = "table-subtitle";
+    const visitCount = visits.filter((visit) => visit.visitedAt).length;
+    metadata.textContent = `${property.location || "未填位置"} · ${visitCount} 次看屋`;
+    nameCell.append(name, metadata);
+
+    const values = [
+      property.status || "待看屋", property.type || "", property.floor || "",
+      formatViewingValue(property.price, " 萬"), formatViewingValue(property.unitPrice, " 萬／坪"),
+      formatViewingValue(property.actualArea, " 坪"), formatViewingValue(property.managementFeeMonthly, " 元／月"),
+      formatViewingValue(loanMetrics.monthlyPayment, " 萬／月"),
+      formatViewingValue(loanMetrics.totalInterest, " 萬"),
+    ];
+    row.append(compareCell, nameCell, ...values.map((value) => {
+      const cell = document.createElement("td");
+      cell.textContent = value;
+      return cell;
+    }));
+
+    const visitCell = document.createElement("td");
+    const visitDetails = document.createElement("details");
+    const visitSummary = document.createElement("summary");
+    visitSummary.textContent = "看屋備註";
+    visitDetails.append(visitSummary);
+    const visitList = document.createElement("ul");
+    visitList.className = "visit-note-list";
+    visits.forEach((visit) => {
+      const item = document.createElement("li");
+      const note = document.createElement("span");
+      note.textContent = `${formatVisitDate(visit.visitedAt)}：${visit.notes || "（無備註）"}`;
+      const deleteVisitButton = createActionButton("刪除此筆", "delete-visit", visit.id, true);
+      item.append(note, deleteVisitButton);
+      visitList.append(item);
+    });
+    visitDetails.append(visitList);
+    visitCell.append(visitDetails);
+    row.append(visitCell);
+
+    const actionsCell = document.createElement("td");
+    actionsCell.className = "record-actions";
+    actionsCell.append(
+      createActionButton("編輯", "edit", property.id),
+      createActionButton("新增看屋", "add-visit", property.id),
+      createActionButton("刪除", "delete", property.id, true),
+    );
+    row.append(actionsCell);
+    tbody.append(row);
+  });
+  renderSimulationPropertyOptions(preferredSimulationId);
+  renderComparisonTable();
+}
+
+function createActionButton(label, action, id, secondary = false) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.textContent = label;
+  button.dataset.action = action;
+  button.dataset.id = id;
+  if (secondary) button.className = "secondary-button compact-button";
+  return button;
+}
+
+function formatViewingValue(value, suffix = "") {
+  if (value === null || value === undefined || value === "") return "—";
+  const formatted = typeof value === "number"
+    ? value.toLocaleString("zh-Hant-TW", { maximumFractionDigits: 2 })
+    : String(value);
+  return `${formatted}${suffix}`;
+}
+
+function formatVisitDate(value) {
+  if (!value) return "未記錄時間";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString("zh-Hant-TW");
+}
+
+function renderComparisonTable() {
+  const data = loadViewingData();
+  const selectedIds = new Set(
+    [...document.querySelectorAll(".compare-checkbox:checked")].map((checkbox) => checkbox.value)
+  );
+  const properties = data.properties.filter((property) => selectedIds.has(property.id) && !isDeletedRecord(property));
+  const loanMetrics = new Map(properties.map((property) => [property.id, calculateLoanMetrics(loanInputsForProperty(property))]));
+  const table = document.getElementById("comparisonTable");
+  table.replaceChildren();
+  if (!properties.length) {
+    document.getElementById("comparisonEmpty").hidden = false;
+    return;
+  }
+  document.getElementById("comparisonEmpty").hidden = true;
+
+  const thead = document.createElement("thead");
+  const titleRow = document.createElement("tr");
+  const firstHeader = document.createElement("th");
+  firstHeader.textContent = "比較項目";
+  titleRow.append(firstHeader);
+  properties.forEach((property) => {
+    const header = document.createElement("th");
+    header.textContent = property.name;
+    titleRow.append(header);
+  });
+  thead.append(titleRow);
+
+  const tbody = document.createElement("tbody");
+  [["status", "追蹤狀態"], ...COMPARISON_FIELDS].forEach(([key, label]) => {
+    const row = document.createElement("tr");
+    const heading = document.createElement("th");
+    heading.scope = "row";
+    heading.textContent = label;
+    row.append(heading);
+    properties.forEach((property) => {
+      const cell = document.createElement("td");
+      const metrics = loanMetrics.get(property.id);
+      let value = metrics && key in metrics ? metrics[key] : property[key];
+      if (key === "parkingSize") {
+        value = property.parkingLengthCm && property.parkingWidthCm
+          ? `${property.parkingLengthCm} × ${property.parkingWidthCm} cm`
+          : "";
+      }
+      const suffix = {
+        titleArea: " 坪", actualArea: " 坪", unitPrice: " 萬／坪", price: " 萬", parkingPrice: " 萬",
+        managementFeePerPing: " 元／坪月", managementFeeMonthly: " 元／月", publicRatio: "%",
+        downPayment: " 萬", loanAmount: " 萬", loanRate: "%", loanYears: " 年",
+        dtiRatio: "%", monthlyPayment: " 萬／月", totalPayment: " 萬",
+        totalInterest: " 萬", requiredAnnualSalary: " 萬／年",
+      }[key] || "";
+      if (key === "repayType") {
+        value = value === "equalPrincipal" ? "本金平均攤還" : "本息平均攤還";
+      }
+      cell.textContent = key === "overallRating" && value ? `${value}／5` : formatViewingValue(value, suffix);
+      row.append(cell);
+    });
+    tbody.append(row);
+  });
+  table.append(thead, tbody);
+}
+
+function renderSimulationPropertyOptions(preferredId = "") {
+  const select = document.getElementById("simulationProperty");
+  const selectedId = preferredId || select.value || "form";
+  const option = document.createElement("option");
+  option.value = "form";
+  option.textContent = "目前表單資料";
+  select.replaceChildren(option);
+  loadViewingData().properties
+    .filter((property) => !isDeletedRecord(property))
+    .forEach((property) => {
+      const propertyOption = document.createElement("option");
+      propertyOption.value = property.id;
+      propertyOption.textContent = property.name || "未命名物件";
+      select.append(propertyOption);
+    });
+  select.value = [...select.options].some((item) => item.value === selectedId) ? selectedId : "form";
+}
+
+function handleViewingTableAction(event) {
+  const button = event.target.closest("button[data-action]");
+  if (!button) return;
+  const { action, id } = button.dataset;
+  if (action === "edit") editViewingProperty(id);
+  if (action === "add-visit") addViewingVisit(id);
+  if (action === "delete") softDeleteProperty(id);
+  if (action === "delete-visit") {
+    const data = loadViewingData();
+    softDeleteRecord(data.visits, id);
+    if (saveViewingData(data)) {
+      setViewingStatus("看屋紀錄已標記刪除。");
+      renderViewingProperties();
+    }
+  }
+}
+
+function mergeRecords(localRecords, importedRecords) {
+  const merged = new Map(localRecords.map((record) => [record.id, record]));
+  importedRecords.forEach((record) => {
+    if (!record || typeof record.id !== "string" || typeof record.updatedAt !== "string" || Number.isNaN(Date.parse(record.updatedAt))) {
+      throw new Error("JSON 中有缺少 ID 或有效更新時間的紀錄。");
+    }
+    const existing = merged.get(record.id);
+    if (!existing || Date.parse(record.updatedAt) > Date.parse(existing.updatedAt)) {
+      merged.set(record.id, record);
+    }
+  });
+  return [...merged.values()];
+}
+
+function exportViewingData() {
+  const data = loadViewingData();
+  const payload = { ...data, exportedAt: currentTimestamp() };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `看房紀錄-${new Date().toISOString().slice(0, 10)}.json`;
+  link.click();
+  URL.revokeObjectURL(url);
+  setViewingStatus("JSON 已匯出。請透過私人方式與另一台裝置交換檔案。");
+}
+
+async function importViewingData(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    const imported = JSON.parse(await file.text());
+    if (imported?.schemaVersion !== VIEWING_SCHEMA_VERSION || !Array.isArray(imported.properties) || !Array.isArray(imported.visits)) {
+      throw new Error("JSON 格式或版本不相容。");
+    }
+    const local = loadViewingData();
+    const merged = {
+      schemaVersion: VIEWING_SCHEMA_VERSION,
+      properties: mergeRecords(local.properties, imported.properties),
+      visits: mergeRecords(local.visits, imported.visits),
+    };
+    if (saveViewingData(merged)) {
+      renderViewingProperties();
+      setViewingStatus(`匯入完成：物件 ${merged.properties.length} 筆、看屋紀錄 ${merged.visits.length} 筆（含刪除標記）。`);
+    }
+  } catch (error) {
+    setViewingStatus(`匯入失敗：${error.message}`, true);
+  } finally {
+    event.target.value = "";
+  }
 }
 
 function fmt(n) {
@@ -340,37 +769,69 @@ function renderSummary(rows, simYears) {
   `;
 }
 
-function updateLoanAmount() {
-  const housePrice = parseFloat(document.getElementById("housePrice").value) || 0;
-  const downPayment = parseFloat(document.getElementById("downPayment").value) || 0;
-  const loanAmount = Math.max(housePrice - downPayment, 0);
-  document.getElementById("loanAmount").value = loanAmount;
-  return loanAmount;
+function readLoanInputsFromForm() {
+  return {
+    price: parseFloat(document.getElementById("viewPrice").value) || 0,
+    downPayment: parseFloat(document.getElementById("viewDownPayment").value) || 0,
+    loanRate: parseFloat(document.getElementById("viewLoanRate").value) || 0,
+    loanYears: parseInt(document.getElementById("viewLoanYears").value) || 30,
+    repayType: document.getElementById("viewRepayType").value,
+    dtiRatio: parseFloat(document.getElementById("viewDtiRatio").value) || 33,
+  };
 }
 
-function updateTargetHouseUnitPrice() {
-  const price = Number.parseFloat(document.getElementById("housePrice").value);
-  const area = Number.parseFloat(document.getElementById("targetHouseArea").value);
-  const unitPrice = document.getElementById("targetHouseUnitPrice");
-  unitPrice.value = Number.isFinite(price) && Number.isFinite(area) && area > 0
-    ? (price / area).toFixed(2)
-    : "";
+function loanInputsForProperty(property) {
+  const price = Number(property.price) || 0;
+  return {
+    price,
+    downPayment: property.downPayment === null || property.downPayment === undefined
+      ? price * 0.2
+      : Number(property.downPayment),
+    loanRate: property.loanRate === null || property.loanRate === undefined ? 2.3 : Number(property.loanRate),
+    loanYears: Number(property.loanYears) || 30,
+    repayType: property.repayType || "equalPayment",
+    dtiRatio: Number(property.dtiRatio) || 33,
+  };
+}
+
+function calculateLoanMetrics(scenario) {
+  const inputs = {
+    price: Number(scenario.price) || 0,
+    downPayment: Number(scenario.downPayment) || 0,
+    loanRate: Number(scenario.loanRate) || 0,
+    loanYears: Number(scenario.loanYears) || 30,
+    repayType: scenario.repayType || "equalPayment",
+    dtiRatio: Number(scenario.dtiRatio) || 33,
+  };
+  const loanAmount = Math.max(inputs.price - inputs.downPayment, 0);
+  const schedule = calcLoanSchedule(loanAmount, inputs.loanRate, inputs.loanYears, inputs.repayType);
+  const totalPayment = schedule.reduce((sum, row) => sum + row.payment, 0);
+  const monthlyPayment = schedule[0]?.payment ?? 0;
+  return {
+    ...inputs,
+    loanAmount,
+    schedule,
+    monthlyPayment,
+    totalInterest: totalPayment - loanAmount,
+    requiredAnnualSalary: (monthlyPayment * 12) / (inputs.dtiRatio / 100),
+  };
 }
 
 function updateLoanResult() {
-  const loanAmount = updateLoanAmount();
-  const loanRate = parseFloat(document.getElementById("loanRate").value) || 0;
-  const loanYears = parseInt(document.getElementById("loanYears").value) || 1;
-  const repayType = document.getElementById("repayType").value;
-  const dtiRatio = parseFloat(document.getElementById("dtiRatio").value) || 33;
-
-  const loanSchedule = calcLoanSchedule(loanAmount, loanRate, loanYears, repayType);
-  renderLoanResult(loanSchedule, loanAmount, dtiRatio);
-  return loanSchedule;
+  const loanMetrics = calculateLoanMetrics(readLoanInputsFromForm());
+  document.getElementById("viewLoanAmount").value = loanMetrics.loanAmount.toFixed(2);
+  renderLoanResult(loanMetrics.schedule, loanMetrics.loanAmount, loanMetrics.dtiRatio);
+  return loanMetrics.schedule;
 }
 
 function runCalculation() {
-  const loanSchedule = updateLoanResult();
+  const selectedPropertyId = document.getElementById("simulationProperty").value;
+  const selectedProperty = selectedPropertyId === "form"
+    ? null
+    : loadViewingData().properties.find((property) => property.id === selectedPropertyId && !isDeletedRecord(property));
+  const loanInputs = selectedProperty ? loanInputsForProperty(selectedProperty) : readLoanInputsFromForm();
+  const loanMetrics = calculateLoanMetrics(loanInputs);
+  const loanSchedule = loanMetrics.schedule;
 
   const currentCash = parseFloat(document.getElementById("currentCash").value) || 0;
   const currentStock = parseFloat(document.getElementById("currentStock").value) || 0;
@@ -381,7 +842,7 @@ function runCalculation() {
   const stockGrowthRate = parseFloat(document.getElementById("stockGrowthRate").value) || 0;
   const simYears = parseInt(document.getElementById("simYears").value) || 1;
 
-  const housePrice = parseFloat(document.getElementById("housePrice").value) || 0;
+  const housePrice = loanMetrics.price;
 
   const simMonths = simYears * 12;
   const rows = simulateAssets({
@@ -405,20 +866,39 @@ if (loadRememberedInputs()) {
   document.getElementById("memoryStatus").textContent = "已載入上次儲存的設定。";
 }
 
-updateTargetHouseUnitPrice();
+migrateLegacyTargetHouses();
 document.getElementById("calcBtn").addEventListener("click", runCalculation);
-document.getElementById("saveTargetHouseBtn").addEventListener("click", addTargetHouse);
-document.getElementById("targetHouseList").addEventListener("click", handleTargetHouseAction);
-renderTargetHouses();
-document.getElementById("housePrice").addEventListener("input", updateTargetHouseUnitPrice);
-document.getElementById("targetHouseArea").addEventListener("input", updateTargetHouseUnitPrice);
 [...rememberedFieldIds].forEach((id) => {
   document.getElementById(id).addEventListener("input", saveRememberedInputs);
   document.getElementById(id).addEventListener("change", saveRememberedInputs);
 });
 document.getElementById("clearMemoryBtn").addEventListener("click", clearRememberedInputs);
-["housePrice", "downPayment", "loanRate", "loanYears", "dtiRatio"].forEach((id) =>
-  document.getElementById(id).addEventListener("input", updateLoanResult)
-);
-document.getElementById("repayType").addEventListener("change", updateLoanResult);
+["viewTitleArea", "viewPublicRatio", "viewPrice", "viewManagementFeePerPing"].forEach((id) => {
+  document.getElementById(id).addEventListener("input", () => {
+    calculateViewingFields();
+    updateLoanResult();
+  });
+});
+[
+  "viewDownPayment", "viewLoanRate", "viewLoanYears", "viewDtiRatio",
+].forEach((id) => document.getElementById(id).addEventListener("input", updateLoanResult));
+document.getElementById("viewRepayType").addEventListener("change", updateLoanResult);
+document.getElementById("simulationProperty").addEventListener("change", runCalculation);
+document.getElementById("viewingForm").addEventListener("submit", saveViewingProperty);
+document.getElementById("viewingTable").addEventListener("click", handleViewingTableAction);
+document.getElementById("viewingTable").addEventListener("change", (event) => {
+  if (event.target.matches(".compare-checkbox")) renderComparisonTable();
+});
+document.getElementById("cancelViewingEditBtn").addEventListener("click", resetViewingForm);
+document.getElementById("exportViewingBtn").addEventListener("click", exportViewingData);
+document.getElementById("importViewingBtn").addEventListener("click", () => {
+  document.getElementById("importViewingFile").click();
+});
+document.getElementById("importViewingFile").addEventListener("change", importViewingData);
+document.getElementById("visitForm").addEventListener("submit", saveViewingVisit);
+document.getElementById("cancelVisitBtn").addEventListener("click", () => {
+  document.getElementById("visitDialog").close();
+});
+resetViewingForm();
+renderViewingProperties();
 document.addEventListener("DOMContentLoaded", runCalculation);
