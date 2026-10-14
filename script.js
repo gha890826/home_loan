@@ -48,13 +48,14 @@ function loadTargetHouses() {
 
 const VIEWING_STORAGE_KEY = "homeLoanViewingData";
 const LEGACY_TARGETS_MIGRATED_KEY = "homeLoanTargetsMigratedToViewingRecords";
-const VIEWING_SCHEMA_VERSION = 2;
+const VIEWING_SCHEMA_VERSION = 3;
 const DELETED_TAG = "deleted";
 const COMPARISON_FIELDS = [
   ["type", "類型"], ["developer", "建設公司"], ["overallRating", "整體評價"], ["location", "位置概述"],
   ["address", "地址"], ["floor", "樓層"], ["titleArea", "權狀坪數"],
   ["publicRatio", "公設比"], ["actualArea", "實際坪數"], ["unitPrice", "單價"],
-  ["price", "總價"], ["parkingPrice", "車位價格"], ["parkingDescription", "車位形式／位置"],
+  ["price", "房屋總價"], ["parkingPrice", "車位價格"], ["purchaseTotal", "購屋總價（含車位）"],
+  ["parkingDescription", "車位形式／位置"],
   ["parkingSize", "車位尺寸"],
   ["managementFeePerPing", "管理費／坪月"], ["managementFeeMonthly", "管理費／月"],
   ["householdsPerFloor", "一層戶數"], ["elevators", "電梯數"],
@@ -72,10 +73,10 @@ function currentTimestamp() {
   return new Date().toISOString();
 }
 
-function localDateTimeValue() {
+function localDateValue() {
   const date = new Date();
   date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
-  return date.toISOString().slice(0, 16);
+  return date.toISOString().slice(0, 10);
 }
 
 function loadViewingData() {
@@ -99,6 +100,12 @@ function normalizeViewingData(data) {
   if (data.schemaVersion === VIEWING_SCHEMA_VERSION) {
     return { schemaVersion: VIEWING_SCHEMA_VERSION, properties: data.properties };
   }
+  if (data.schemaVersion === 2) {
+    return {
+      schemaVersion: VIEWING_SCHEMA_VERSION,
+      properties: data.properties.map((property) => ({ ...property, visitedAt: toDateOnly(property.visitedAt) })),
+    };
+  }
   if (data.schemaVersion !== 1 || !Array.isArray(data.visits)) return null;
 
   const properties = data.properties.map((property) => ({ ...property }));
@@ -116,12 +123,16 @@ function normalizeViewingData(data) {
     const existingNotes = String(property.notes || "").trim();
     property.notes = [...(existingNotes ? [existingNotes] : []), ...visitNotes].join("\n\n");
     const latestVisit = visits.at(-1);
-    property.visitedAt = latestVisit?.visitedAt || property.visitedAt || "";
+    property.visitedAt = toDateOnly(latestVisit?.visitedAt || property.visitedAt);
     const timestamps = [property.updatedAt, ...visits.map((visit) => visit.updatedAt)]
       .filter((timestamp) => timestamp && !Number.isNaN(Date.parse(timestamp)));
     if (timestamps.length) property.updatedAt = timestamps.sort((left, right) => Date.parse(right) - Date.parse(left))[0];
   });
   return { schemaVersion: VIEWING_SCHEMA_VERSION, properties };
+}
+
+function toDateOnly(value) {
+  return value ? String(value).slice(0, 10) : "";
 }
 
 function saveViewingData(data) {
@@ -213,6 +224,7 @@ function calculateViewingFields() {
   const titleArea = numericField("viewTitleArea");
   const publicRatio = numericField("viewPublicRatio");
   const price = numericField("viewPrice");
+  const parkingPrice = numericField("viewParkingPrice");
   const actualArea = titleArea !== null && publicRatio !== null
     ? titleArea * (1 - publicRatio / 100)
     : null;
@@ -221,11 +233,15 @@ function calculateViewingFields() {
   const managementFeeMonthly = titleArea !== null && feePerPing !== null
     ? titleArea * feePerPing
     : null;
+  const purchaseTotal = price !== null || parkingPrice !== null
+    ? (price || 0) + (parkingPrice || 0)
+    : null;
   document.getElementById("viewActualArea").value = actualArea === null ? "" : actualArea.toFixed(2);
   document.getElementById("viewUnitPrice").value = unitPrice === null ? "" : unitPrice.toFixed(2);
   document.getElementById("viewManagementFeeMonthly").value = managementFeeMonthly === null
     ? ""
     : managementFeeMonthly.toFixed(0);
+  document.getElementById("viewPurchaseTotal").value = purchaseTotal === null ? "" : purchaseTotal.toFixed(1);
 }
 
 function readPropertyForm() {
@@ -270,7 +286,7 @@ function resetViewingForm() {
   document.getElementById("viewFormTitle").textContent = "新增看房物件";
   document.getElementById("saveViewingBtn").textContent = "新增物件";
   document.getElementById("cancelViewingEditBtn").hidden = true;
-  document.getElementById("viewVisitTime").value = localDateTimeValue();
+  document.getElementById("viewVisitTime").value = localDateValue();
   calculateViewingFields();
   updateLoanResult();
 }
@@ -383,10 +399,11 @@ function renderViewingProperties(preferredSimulationId = "") {
 
     const values = [
       property.status || "待看屋", property.type || "", property.floor || "",
-      formatViewingValue(property.price, " 萬"), formatViewingValue(property.unitPrice, " 萬／坪"),
-      formatViewingValue(property.actualArea, " 坪"), formatViewingValue(property.managementFeeMonthly, " 元／月"),
-      formatViewingValue(loanMetrics.monthlyPayment, " 萬／月"),
-      formatViewingValue(loanMetrics.totalInterest, " 萬"),
+      formatViewingValue((Number(property.price) || 0) + (Number(property.parkingPrice) || 0)),
+      formatViewingValue(property.unitPrice),
+      formatViewingValue(property.actualArea), formatViewingValue(property.managementFeeMonthly),
+      formatViewingValue(loanMetrics.monthlyPayment),
+      formatViewingValue(loanMetrics.totalInterest),
     ];
     row.append(compareCell, nameCell, ...values.map((value) => {
       const cell = document.createElement("td");
@@ -433,9 +450,7 @@ function formatViewingValue(value, suffix = "") {
 }
 
 function formatVisitDate(value) {
-  if (!value) return "未記錄時間";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString("zh-Hant-TW");
+  return toDateOnly(value) || "未記錄日期";
 }
 
 function renderComparisonTable() {
@@ -475,7 +490,9 @@ function renderComparisonTable() {
     properties.forEach((property) => {
       const cell = document.createElement("td");
       const metrics = loanMetrics.get(property.id);
-      let value = metrics && key in metrics ? metrics[key] : property[key];
+      let value = key === "purchaseTotal"
+        ? (Number(property.price) || 0) + (Number(property.parkingPrice) || 0)
+        : metrics && key in metrics ? metrics[key] : property[key];
       if (key === "parkingSize") {
         value = property.parkingLengthCm && property.parkingWidthCm
           ? `${property.parkingLengthCm} × ${property.parkingWidthCm} cm`
@@ -483,6 +500,7 @@ function renderComparisonTable() {
       }
       const suffix = {
         titleArea: " 坪", actualArea: " 坪", unitPrice: " 萬／坪", price: " 萬", parkingPrice: " 萬",
+        purchaseTotal: " 萬",
         managementFeePerPing: " 元／坪月", managementFeeMonthly: " 元／月", publicRatio: "%",
         downPayment: " 萬", loanAmount: " 萬", loanRate: "%", loanYears: " 年",
         dtiRatio: "%", monthlyPayment: " 萬／月", totalPayment: " 萬",
@@ -738,7 +756,8 @@ function renderSummary(rows, simYears) {
 
 function readLoanInputsFromForm() {
   return {
-    price: parseFloat(document.getElementById("viewPrice").value) || 0,
+    price: (parseFloat(document.getElementById("viewPrice").value) || 0) +
+      (parseFloat(document.getElementById("viewParkingPrice").value) || 0),
     downPayment: parseFloat(document.getElementById("viewDownPayment").value) || 0,
     loanRate: parseFloat(document.getElementById("viewLoanRate").value) || 0,
     loanYears: parseInt(document.getElementById("viewLoanYears").value) || 30,
@@ -748,7 +767,7 @@ function readLoanInputsFromForm() {
 }
 
 function loanInputsForProperty(property) {
-  const price = Number(property.price) || 0;
+  const price = (Number(property.price) || 0) + (Number(property.parkingPrice) || 0);
   return {
     price,
     downPayment: property.downPayment === null || property.downPayment === undefined
@@ -840,7 +859,9 @@ document.getElementById("calcBtn").addEventListener("click", runCalculation);
   document.getElementById(id).addEventListener("change", saveRememberedInputs);
 });
 document.getElementById("clearMemoryBtn").addEventListener("click", clearRememberedInputs);
-["viewTitleArea", "viewPublicRatio", "viewPrice", "viewManagementFeePerPing"].forEach((id) => {
+[
+  "viewTitleArea", "viewPublicRatio", "viewPrice", "viewParkingPrice", "viewManagementFeePerPing",
+].forEach((id) => {
   document.getElementById(id).addEventListener("input", () => {
     calculateViewingFields();
     updateLoanResult();

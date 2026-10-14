@@ -461,9 +461,24 @@ footer {
   white-space: nowrap;
 }
 
+.viewing-table thead th {
+  text-align: center;
+  white-space: nowrap;
+  line-height: 1.35;
+}
+
 .viewing-table td:nth-child(2) {
   min-width: 190px;
   white-space: normal;
+}
+
+.viewing-table .viewing-note-cell {
+  width: 240px;
+  min-width: 180px;
+  max-width: 300px;
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .table-subtitle {
@@ -474,7 +489,7 @@ footer {
 }
 
 .record-actions {
-  min-width: 220px;
+  min-width: 140px;
 }
 
 .record-actions button {
@@ -496,6 +511,27 @@ footer {
 
 .comparison-table {
   margin-top: 0.75rem;
+  width: max-content;
+  min-width: 0;
+  table-layout: fixed;
+}
+
+.comparison-table th:first-child,
+.comparison-table td:first-child {
+  width: 160px;
+  min-width: 160px;
+  max-width: 160px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.comparison-table th:not(:first-child),
+.comparison-table td:not(:first-child) {
+  width: 180px;
+  min-width: 180px;
+  max-width: 180px;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .comparison-table th:first-child,

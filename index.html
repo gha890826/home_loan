@@ -107,6 +107,9 @@
           <label>車位價格（萬元）
             <input id="viewParkingPrice" type="number" min="0" step="0.1">
           </label>
+          <label>購屋總價（含車位，萬元）
+            <input id="viewPurchaseTotal" type="number" readonly>
+          </label>
           <label>車位長（公分）
             <input id="viewParkingLength" type="number" min="0" step="1">
           </label>
@@ -134,6 +137,7 @@
       </fieldset>
       <fieldset class="loan-fields">
         <legend>本物件房貸試算</legend>
+        <p class="field-help">貸款金額＝房屋總價＋車位價格－頭期款。</p>
         <div class="grid viewing-grid">
           <label>頭期款（萬元）
             <input id="viewDownPayment" type="number" min="0" step="0.1" value="320">
@@ -161,10 +165,10 @@
       </fieldset>
       <fieldset class="form-section visit-section">
         <legend>看屋資料</legend>
-        <p class="field-help">每個物件只保留一組看房時間與備註；再次看屋時請編輯同一物件更新。</p>
+        <p class="field-help">每個物件只保留一組看房日期與備註；再次看屋時請編輯同一物件更新。</p>
         <div class="visit-entry-fields">
-          <label>看房時間
-            <input id="viewVisitTime" type="datetime-local" required>
+          <label>看房日期
+            <input id="viewVisitTime" type="date" required>
           </label>
           <label>現場觀察與優缺點（備註）
             <textarea id="viewNotes" rows="3" maxlength="3000" placeholder="可記錄每次看屋時注意到的事項"></textarea>
@@ -184,9 +188,9 @@
         <thead>
           <tr>
             <th>比較</th><th>物件</th><th>狀態</th><th>類型</th><th>樓層</th>
-            <th>總價（萬）</th><th>單價（萬／坪）</th><th>實際坪數</th>
-            <th>管理費／月</th><th>首月月付（萬）</th><th>總利息（萬）</th>
-            <th>看房時間</th><th>備註</th><th>操作</th>
+            <th>含車位總價<br>(萬元)</th><th>單價<br>(萬元/坪)</th><th>實際坪數<br>(坪)</th>
+            <th>管理費/月<br>(元)</th><th>首月月付<br>(萬元/月)</th><th>總利息<br>(萬元)</th>
+            <th>看房日期</th><th>備註</th><th>操作</th>
           </tr>
         </thead>
         <tbody></tbody>
