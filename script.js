@@ -50,19 +50,39 @@ const VIEWING_STORAGE_KEY = "homeLoanViewingData";
 const LEGACY_TARGETS_MIGRATED_KEY = "homeLoanTargetsMigratedToViewingRecords";
 const VIEWING_SCHEMA_VERSION = 3;
 const DELETED_TAG = "deleted";
-const COMPARISON_FIELDS = [
-  ["type", "類型"], ["developer", "建設公司"], ["overallRating", "整體評價"], ["location", "位置概述"],
-  ["address", "地址"], ["floor", "樓層"], ["titleArea", "權狀坪數"],
-  ["publicRatio", "公設比"], ["actualArea", "實際坪數"], ["unitPrice", "單價"],
-  ["price", "房屋總價"], ["parkingPrice", "車位價格"], ["purchaseTotal", "購屋總價（含車位）"],
-  ["parkingDescription", "車位形式／位置"],
-  ["parkingSize", "車位尺寸"],
-  ["managementFeePerPing", "管理費／坪月"], ["managementFeeMonthly", "管理費／月"],
-  ["householdsPerFloor", "一層戶數"], ["elevators", "電梯數"],
-  ["downPayment", "頭期款"], ["loanAmount", "貸款金額"], ["loanRate", "貸款年利率"],
-  ["loanYears", "貸款年限"], ["repayType", "還款方式"], ["dtiRatio", "房貸負擔比上限"],
-  ["monthlyPayment", "首月月付金"], ["totalPayment", "總繳金額"],
-  ["totalInterest", "總利息"], ["requiredAnnualSalary", "需求年薪估算"],
+const COMPARISON_GROUPS = [
+  {
+    label: "物件資訊",
+    fields: [
+      ["status", "追蹤狀態"], ["type", "類型"], ["developer", "建設公司"],
+      ["overallRating", "整體評價"], ["location", "位置概述"], ["address", "地址"], ["floor", "樓層"],
+    ],
+  },
+  {
+    label: "坪數與價格",
+    fields: [
+      ["titleArea", "權狀坪數"], ["publicRatio", "公設比"], ["actualArea", "實際坪數"],
+      ["unitPrice", "單價"], ["price", "房屋總價"], ["parkingPrice", "車位價格"],
+      ["purchaseTotal", "購屋總價（含車位）"],
+    ],
+  },
+  {
+    label: "車位與社區",
+    fields: [
+      ["parkingDescription", "車位形式／位置"], ["parkingSize", "車位尺寸"],
+      ["managementFeePerPing", "管理費／坪月"], ["managementFeeMonthly", "管理費／月"],
+      ["householdsPerFloor", "一層戶數"], ["elevators", "電梯數"],
+    ],
+  },
+  {
+    label: "房貸試算",
+    fields: [
+      ["downPayment", "頭期款"], ["loanAmount", "貸款金額"], ["loanRate", "貸款年利率"],
+      ["loanYears", "貸款年限"], ["repayType", "還款方式"], ["dtiRatio", "房貸負擔比上限"],
+      ["monthlyPayment", "首月月付金"], ["totalPayment", "總繳金額"],
+      ["totalInterest", "總利息"], ["requiredAnnualSalary", "需求年薪估算"],
+    ],
+  },
 ];
 
 function createRecordId() {
@@ -415,7 +435,19 @@ function renderViewingProperties(preferredSimulationId = "") {
     visitDateCell.textContent = property.visitedAt ? formatVisitDate(property.visitedAt) : "—";
     const notesCell = document.createElement("td");
     notesCell.className = "viewing-note-cell";
-    notesCell.textContent = property.notes || "—";
+    if (property.notes) {
+      const details = document.createElement("details");
+      details.className = "viewing-note-details";
+      const summary = document.createElement("summary");
+      summary.textContent = "查看備註";
+      const content = document.createElement("div");
+      content.className = "viewing-note-content";
+      content.textContent = property.notes;
+      details.append(summary, content);
+      notesCell.append(details);
+    } else {
+      notesCell.textContent = "—";
+    }
     row.append(visitDateCell, notesCell);
 
     const actionsCell = document.createElement("td");
@@ -482,38 +514,53 @@ function renderComparisonTable() {
   thead.append(titleRow);
 
   const tbody = document.createElement("tbody");
-  [["status", "追蹤狀態"], ...COMPARISON_FIELDS].forEach(([key, label]) => {
-    const row = document.createElement("tr");
-    const heading = document.createElement("th");
-    heading.scope = "row";
-    heading.textContent = label;
-    row.append(heading);
-    properties.forEach((property) => {
-      const cell = document.createElement("td");
-      const metrics = loanMetrics.get(property.id);
-      let value = key === "purchaseTotal"
-        ? (Number(property.price) || 0) + (Number(property.parkingPrice) || 0)
-        : metrics && key in metrics ? metrics[key] : property[key];
-      if (key === "parkingSize") {
-        value = property.parkingLengthCm && property.parkingWidthCm
-          ? `${property.parkingLengthCm} × ${property.parkingWidthCm} cm`
-          : "";
-      }
-      const suffix = {
-        titleArea: " 坪", actualArea: " 坪", unitPrice: " 萬／坪", price: " 萬", parkingPrice: " 萬",
-        purchaseTotal: " 萬",
-        managementFeePerPing: " 元／坪月", managementFeeMonthly: " 元／月", publicRatio: "%",
-        downPayment: " 萬", loanAmount: " 萬", loanRate: "%", loanYears: " 年",
-        dtiRatio: "%", monthlyPayment: " 萬／月", totalPayment: " 萬",
-        totalInterest: " 萬", requiredAnnualSalary: " 萬／年",
-      }[key] || "";
-      if (key === "repayType") {
-        value = value === "equalPrincipal" ? "本金平均攤還" : "本息平均攤還";
-      }
-      cell.textContent = key === "overallRating" && value ? `${value}／5` : formatViewingValue(value, suffix);
-      row.append(cell);
+  COMPARISON_GROUPS.forEach(({ label, fields }) => {
+    const groupRow = document.createElement("tr");
+    groupRow.className = "comparison-group-row";
+    const groupHeading = document.createElement("th");
+    groupHeading.scope = "row";
+    groupHeading.textContent = label;
+    groupRow.append(groupHeading);
+    const groupFill = document.createElement("td");
+    groupFill.colSpan = properties.length;
+    groupFill.setAttribute("aria-hidden", "true");
+    groupRow.append(groupFill);
+    tbody.append(groupRow);
+
+    fields.forEach(([key, fieldLabel]) => {
+      const row = document.createElement("tr");
+      const heading = document.createElement("th");
+      heading.scope = "row";
+      heading.textContent = fieldLabel;
+      row.append(heading);
+      properties.forEach((property) => {
+        const cell = document.createElement("td");
+        const metrics = loanMetrics.get(property.id);
+        let value = key === "purchaseTotal"
+          ? (Number(property.price) || 0) + (Number(property.parkingPrice) || 0)
+          : metrics && key in metrics ? metrics[key] : property[key];
+        if (key === "parkingSize") {
+          value = property.parkingLengthCm && property.parkingWidthCm
+            ? `${property.parkingLengthCm} × ${property.parkingWidthCm} cm`
+            : "";
+        }
+        const suffix = {
+          titleArea: " 坪", actualArea: " 坪", unitPrice: " 萬／坪", price: " 萬", parkingPrice: " 萬",
+          purchaseTotal: " 萬",
+          managementFeePerPing: " 元／坪月", managementFeeMonthly: " 元／月", publicRatio: "%",
+          downPayment: " 萬", loanAmount: " 萬", loanRate: "%", loanYears: " 年",
+          dtiRatio: "%", monthlyPayment: " 萬／月", totalPayment: " 萬",
+          totalInterest: " 萬", requiredAnnualSalary: " 萬／年",
+        }[key] || "";
+        if (key === "repayType") {
+          value = value === "equalPrincipal" ? "本金平均攤還" : "本息平均攤還";
+        }
+        if (typeof value === "number") cell.classList.add("numeric-cell");
+        cell.textContent = key === "overallRating" && value ? `${value}／5` : formatViewingValue(value, suffix);
+        row.append(cell);
+      });
+      tbody.append(row);
     });
-    tbody.append(row);
   });
   table.append(thead, tbody);
 }
@@ -806,6 +853,7 @@ function calculateLoanMetrics(scenario) {
     loanAmount,
     schedule,
     monthlyPayment,
+    totalPayment,
     totalInterest: totalPayment - loanAmount,
     requiredAnnualSalary: (monthlyPayment * 12) / (inputs.dtiRatio / 100),
   };

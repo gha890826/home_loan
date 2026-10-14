@@ -29,6 +29,8 @@
 
 ## 部署到 GitHub Pages
 
+網站網址：[https://gha890826.github.io/home_loan/](https://gha890826.github.io/home_loan/)
+
 ### 方式一：GitHub Actions（已內建）
 
 本專案已包含 [.github/workflows/deploy.yml](.github/workflows/deploy.yml)，推送到 `main` 分支後會自動建置並部署。
