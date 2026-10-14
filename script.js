@@ -461,6 +461,7 @@ function renderComparisonTable() {
   const properties = data.properties.filter((property) => selectedIds.has(property.id) && !isDeletedRecord(property));
   const loanMetrics = new Map(properties.map((property) => [property.id, calculateLoanMetrics(loanInputsForProperty(property))]));
   const table = document.getElementById("comparisonTable");
+  document.getElementById("clearComparisonBtn").disabled = properties.length === 0;
   table.replaceChildren();
   if (!properties.length) {
     document.getElementById("comparisonEmpty").hidden = false;
@@ -515,6 +516,13 @@ function renderComparisonTable() {
     tbody.append(row);
   });
   table.append(thead, tbody);
+}
+
+function clearComparisonSelection() {
+  document.querySelectorAll(".compare-checkbox:checked").forEach((checkbox) => {
+    checkbox.checked = false;
+  });
+  renderComparisonTable();
 }
 
 function renderSimulationPropertyOptions(preferredId = "") {
@@ -877,6 +885,7 @@ document.getElementById("viewingTable").addEventListener("click", handleViewingT
 document.getElementById("viewingTable").addEventListener("change", (event) => {
   if (event.target.matches(".compare-checkbox")) renderComparisonTable();
 });
+document.getElementById("clearComparisonBtn").addEventListener("click", clearComparisonSelection);
 document.getElementById("cancelViewingEditBtn").addEventListener("click", resetViewingForm);
 document.getElementById("exportViewingBtn").addEventListener("click", exportViewingData);
 document.getElementById("importViewingBtn").addEventListener("click", () => {

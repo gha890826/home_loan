@@ -20,11 +20,6 @@
         <h2>看房紀錄、房貸試算與物件比較</h2>
         <p class="note">資料儲存在目前瀏覽器。跨裝置請匯出 JSON 再匯入；相同 ID 以較新的更新時間為準。刪除只會加上標記，紀錄仍保留在 JSON 中。</p>
       </div>
-      <div class="data-actions">
-        <button id="exportViewingBtn" type="button" class="secondary-button">匯出 JSON</button>
-        <button id="importViewingBtn" type="button" class="secondary-button">匯入 JSON</button>
-        <input id="importViewingFile" type="file" accept=".json,application/json" hidden>
-      </div>
     </div>
 
     <form id="viewingForm">
@@ -182,7 +177,14 @@
     </form>
     <p id="viewingStatus" class="memory-status" aria-live="polite">尚未新增看房紀錄。</p>
 
-    <h3 class="subsection-title">物件清單</h3>
+    <div class="list-heading">
+      <h3 class="subsection-title">物件清單</h3>
+      <div class="data-actions">
+        <button id="exportViewingBtn" type="button" class="secondary-button">匯出 JSON</button>
+        <button id="importViewingBtn" type="button" class="secondary-button">匯入 JSON</button>
+        <input id="importViewingFile" type="file" accept=".json,application/json" hidden>
+      </div>
+    </div>
     <div class="table-wrap">
       <table id="viewingTable" class="viewing-table">
         <thead>
@@ -198,7 +200,10 @@
     </div>
 
     <div class="comparison-section">
-      <h3>物件比較</h3>
+      <div class="comparison-heading">
+        <h3>物件比較</h3>
+        <button id="clearComparisonBtn" class="secondary-button" type="button" disabled>清除比較</button>
+      </div>
       <p id="comparisonEmpty" class="memory-status">勾選物件清單中的「比較」欄位以加入比較。</p>
       <div class="table-wrap">
         <table id="comparisonTable" class="comparison-table"></table>
