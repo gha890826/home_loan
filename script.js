@@ -48,7 +48,7 @@ function loadTargetHouses() {
 
 const VIEWING_STORAGE_KEY = "homeLoanViewingData";
 const LEGACY_TARGETS_MIGRATED_KEY = "homeLoanTargetsMigratedToViewingRecords";
-const VIEWING_SCHEMA_VERSION = 1;
+const VIEWING_SCHEMA_VERSION = 2;
 const DELETED_TAG = "deleted";
 const COMPARISON_FIELDS = [
   ["type", "類型"], ["developer", "建設公司"], ["overallRating", "整體評價"], ["location", "位置概述"],
@@ -81,13 +81,47 @@ function localDateTimeValue() {
 function loadViewingData() {
   try {
     const data = JSON.parse(localStorage.getItem(VIEWING_STORAGE_KEY) || "null");
-    if (data?.schemaVersion === VIEWING_SCHEMA_VERSION && Array.isArray(data.properties) && Array.isArray(data.visits)) {
-      return data;
+    const normalized = normalizeViewingData(data);
+    if (normalized) {
+      if (data.schemaVersion !== VIEWING_SCHEMA_VERSION) {
+        localStorage.setItem(VIEWING_STORAGE_KEY, JSON.stringify(normalized));
+      }
+      return normalized;
     }
   } catch {
     // Start with an empty data set if stored data is malformed.
   }
-  return { schemaVersion: VIEWING_SCHEMA_VERSION, properties: [], visits: [] };
+  return { schemaVersion: VIEWING_SCHEMA_VERSION, properties: [] };
+}
+
+function normalizeViewingData(data) {
+  if (!data || !Array.isArray(data.properties)) return null;
+  if (data.schemaVersion === VIEWING_SCHEMA_VERSION) {
+    return { schemaVersion: VIEWING_SCHEMA_VERSION, properties: data.properties };
+  }
+  if (data.schemaVersion !== 1 || !Array.isArray(data.visits)) return null;
+
+  const properties = data.properties.map((property) => ({ ...property }));
+  properties.forEach((property) => {
+    const visits = data.visits
+      .filter((visit) => visit.propertyId === property.id && !isDeletedRecord(visit))
+      .sort((left, right) => Date.parse(left.visitedAt || left.createdAt) - Date.parse(right.visitedAt || right.createdAt));
+    const visitNotes = visits.map((visit) => {
+      const note = String(visit.notes || "").trim();
+      if (!note) return "";
+      return visits.length > 1 && visit.visitedAt
+        ? `${formatVisitDate(visit.visitedAt)}：${note}`
+        : note;
+    }).filter(Boolean);
+    const existingNotes = String(property.notes || "").trim();
+    property.notes = [...(existingNotes ? [existingNotes] : []), ...visitNotes].join("\n\n");
+    const latestVisit = visits.at(-1);
+    property.visitedAt = latestVisit?.visitedAt || property.visitedAt || "";
+    const timestamps = [property.updatedAt, ...visits.map((visit) => visit.updatedAt)]
+      .filter((timestamp) => timestamp && !Number.isNaN(Date.parse(timestamp)));
+    if (timestamps.length) property.updatedAt = timestamps.sort((left, right) => Date.parse(right) - Date.parse(left))[0];
+  });
+  return { schemaVersion: VIEWING_SCHEMA_VERSION, properties };
 }
 
 function saveViewingData(data) {
@@ -158,11 +192,10 @@ function migrateLegacyTargetHouses() {
       loanYears: 30,
       repayType: "equalPayment",
       dtiRatio: 33,
+      visitedAt: "",
+      notes: house.notes || "",
     });
     data.properties.push(property);
-    if (house.notes) {
-      data.visits.push(makeRecord({ propertyId: property.id, visitedAt: "", notes: house.notes }));
-    }
   });
 
   if (saveViewingData(data)) {
@@ -226,13 +259,14 @@ function readPropertyForm() {
     loanYears: numericField("viewLoanYears"),
     repayType: document.getElementById("viewRepayType").value,
     dtiRatio: numericField("viewDtiRatio"),
+    visitedAt: document.getElementById("viewVisitTime").value,
+    notes: document.getElementById("viewNotes").value.trim(),
   };
 }
 
 function resetViewingForm() {
   document.getElementById("viewingForm").reset();
   document.getElementById("editingPropertyId").value = "";
-  document.getElementById("editingVisitId").value = "";
   document.getElementById("viewFormTitle").textContent = "新增看房物件";
   document.getElementById("saveViewingBtn").textContent = "新增物件";
   document.getElementById("cancelViewingEditBtn").hidden = true;
@@ -247,7 +281,6 @@ function saveViewingProperty(event) {
   updateLoanResult();
   const data = loadViewingData();
   const propertyId = document.getElementById("editingPropertyId").value;
-  const visitId = document.getElementById("editingVisitId").value;
   const timestamp = currentTimestamp();
   const fields = readPropertyForm();
   let preferredSimulationId = propertyId;
@@ -260,23 +293,12 @@ function saveViewingProperty(event) {
     const property = data.properties.find((item) => item.id === propertyId);
     if (!property) return;
     Object.assign(property, fields, { updatedAt: timestamp });
-    const visit = data.visits.find((item) => item.id === visitId);
-    if (visit) {
-      visit.visitedAt = document.getElementById("viewVisitTime").value;
-      visit.notes = document.getElementById("viewNotes").value.trim();
-      visit.updatedAt = timestamp;
-    }
-    setViewingStatus("物件與看屋紀錄已更新。");
+    setViewingStatus("物件與看屋資料已更新。");
   } else {
     const property = makeRecord(fields);
     data.properties.push(property);
     preferredSimulationId = property.id;
-    data.visits.push(makeRecord({
-      propertyId: property.id,
-      visitedAt: document.getElementById("viewVisitTime").value,
-      notes: document.getElementById("viewNotes").value.trim(),
-    }));
-    setViewingStatus("物件與首次看屋紀錄已新增。");
+    setViewingStatus("物件與看屋資料已新增。");
   }
 
   if (!saveViewingData(data)) return;
@@ -289,9 +311,6 @@ function editViewingProperty(propertyId) {
   const data = loadViewingData();
   const property = data.properties.find((item) => item.id === propertyId && !isDeletedRecord(item));
   if (!property) return;
-  const latestVisit = data.visits
-    .filter((visit) => visit.propertyId === propertyId && !isDeletedRecord(visit))
-    .sort((left, right) => Date.parse(right.visitedAt || right.updatedAt) - Date.parse(left.visitedAt || left.updatedAt))[0];
   const loanInputs = loanInputsForProperty(property);
 
   const fields = {
@@ -306,15 +325,13 @@ function editViewingProperty(propertyId) {
     viewDownPayment: loanInputs.downPayment, viewLoanRate: loanInputs.loanRate,
     viewLoanYears: loanInputs.loanYears, viewRepayType: loanInputs.repayType,
     viewDtiRatio: loanInputs.dtiRatio,
+    viewVisitTime: property.visitedAt, viewNotes: property.notes,
   };
   Object.entries(fields).forEach(([id, value]) => {
     document.getElementById(id).value = value ?? "";
   });
   document.getElementById("editingPropertyId").value = property.id;
-  document.getElementById("editingVisitId").value = latestVisit?.id ?? "";
-  document.getElementById("viewVisitTime").value = latestVisit?.visitedAt ?? "";
-  document.getElementById("viewNotes").value = latestVisit?.notes ?? "";
-  document.getElementById("viewFormTitle").textContent = "編輯物件與最近一次看屋紀錄";
+  document.getElementById("viewFormTitle").textContent = "編輯物件與看屋資料";
   document.getElementById("saveViewingBtn").textContent = "儲存修改";
   document.getElementById("cancelViewingEditBtn").hidden = false;
   calculateViewingFields();
@@ -339,30 +356,6 @@ function softDeleteProperty(propertyId) {
   }
 }
 
-function addViewingVisit(propertyId) {
-  const dialog = document.getElementById("visitDialog");
-  document.getElementById("visitPropertyId").value = propertyId;
-  document.getElementById("visitDateTime").value = localDateTimeValue();
-  document.getElementById("visitNotes").value = "";
-  dialog.showModal();
-}
-
-function saveViewingVisit(event) {
-  event.preventDefault();
-  const data = loadViewingData();
-  const propertyId = document.getElementById("visitPropertyId").value;
-  if (!data.properties.some((item) => item.id === propertyId && !isDeletedRecord(item))) return;
-  data.visits.push(makeRecord({
-    propertyId,
-    visitedAt: document.getElementById("visitDateTime").value,
-    notes: document.getElementById("visitNotes").value.trim(),
-  }));
-  if (!saveViewingData(data)) return;
-  document.getElementById("visitDialog").close();
-  setViewingStatus("新的看屋備註已新增。");
-  renderViewingProperties();
-}
-
 function renderViewingProperties(preferredSimulationId = "") {
   const data = loadViewingData();
   const tbody = document.querySelector("#viewingTable tbody");
@@ -371,9 +364,6 @@ function renderViewingProperties(preferredSimulationId = "") {
 
   visibleProperties.forEach((property) => {
     const loanMetrics = calculateLoanMetrics(loanInputsForProperty(property));
-    const visits = data.visits
-      .filter((visit) => visit.propertyId === property.id && !isDeletedRecord(visit))
-      .sort((left, right) => Date.parse(right.visitedAt || right.createdAt) - Date.parse(left.visitedAt || left.createdAt));
     const row = document.createElement("tr");
     const compareCell = document.createElement("td");
     const compareCheckbox = document.createElement("input");
@@ -388,8 +378,7 @@ function renderViewingProperties(preferredSimulationId = "") {
     name.textContent = property.name || "未命名物件";
     const metadata = document.createElement("span");
     metadata.className = "table-subtitle";
-    const visitCount = visits.filter((visit) => visit.visitedAt).length;
-    metadata.textContent = `${property.location || "未填位置"} · ${visitCount} 次看屋`;
+    metadata.textContent = property.location || "未填位置";
     nameCell.append(name, metadata);
 
     const values = [
@@ -405,30 +394,17 @@ function renderViewingProperties(preferredSimulationId = "") {
       return cell;
     }));
 
-    const visitCell = document.createElement("td");
-    const visitDetails = document.createElement("details");
-    const visitSummary = document.createElement("summary");
-    visitSummary.textContent = "看屋備註";
-    visitDetails.append(visitSummary);
-    const visitList = document.createElement("ul");
-    visitList.className = "visit-note-list";
-    visits.forEach((visit) => {
-      const item = document.createElement("li");
-      const note = document.createElement("span");
-      note.textContent = `${formatVisitDate(visit.visitedAt)}：${visit.notes || "（無備註）"}`;
-      const deleteVisitButton = createActionButton("刪除此筆", "delete-visit", visit.id, true);
-      item.append(note, deleteVisitButton);
-      visitList.append(item);
-    });
-    visitDetails.append(visitList);
-    visitCell.append(visitDetails);
-    row.append(visitCell);
+    const visitDateCell = document.createElement("td");
+    visitDateCell.textContent = property.visitedAt ? formatVisitDate(property.visitedAt) : "—";
+    const notesCell = document.createElement("td");
+    notesCell.className = "viewing-note-cell";
+    notesCell.textContent = property.notes || "—";
+    row.append(visitDateCell, notesCell);
 
     const actionsCell = document.createElement("td");
     actionsCell.className = "record-actions";
     actionsCell.append(
       createActionButton("編輯", "edit", property.id),
-      createActionButton("新增看屋", "add-visit", property.id),
       createActionButton("刪除", "delete", property.id, true),
     );
     row.append(actionsCell);
@@ -546,16 +522,7 @@ function handleViewingTableAction(event) {
   if (!button) return;
   const { action, id } = button.dataset;
   if (action === "edit") editViewingProperty(id);
-  if (action === "add-visit") addViewingVisit(id);
   if (action === "delete") softDeleteProperty(id);
-  if (action === "delete-visit") {
-    const data = loadViewingData();
-    softDeleteRecord(data.visits, id);
-    if (saveViewingData(data)) {
-      setViewingStatus("看屋紀錄已標記刪除。");
-      renderViewingProperties();
-    }
-  }
 }
 
 function mergeRecords(localRecords, importedRecords) {
@@ -590,18 +557,18 @@ async function importViewingData(event) {
   if (!file) return;
   try {
     const imported = JSON.parse(await file.text());
-    if (imported?.schemaVersion !== VIEWING_SCHEMA_VERSION || !Array.isArray(imported.properties) || !Array.isArray(imported.visits)) {
+    const normalized = normalizeViewingData(imported);
+    if (!normalized) {
       throw new Error("JSON 格式或版本不相容。");
     }
     const local = loadViewingData();
     const merged = {
       schemaVersion: VIEWING_SCHEMA_VERSION,
-      properties: mergeRecords(local.properties, imported.properties),
-      visits: mergeRecords(local.visits, imported.visits),
+      properties: mergeRecords(local.properties, normalized.properties),
     };
     if (saveViewingData(merged)) {
       renderViewingProperties();
-      setViewingStatus(`匯入完成：物件 ${merged.properties.length} 筆、看屋紀錄 ${merged.visits.length} 筆（含刪除標記）。`);
+      setViewingStatus(`匯入完成：物件 ${merged.properties.length} 筆（含刪除標記）。`);
     }
   } catch (error) {
     setViewingStatus(`匯入失敗：${error.message}`, true);
@@ -895,10 +862,6 @@ document.getElementById("importViewingBtn").addEventListener("click", () => {
   document.getElementById("importViewingFile").click();
 });
 document.getElementById("importViewingFile").addEventListener("change", importViewingData);
-document.getElementById("visitForm").addEventListener("submit", saveViewingVisit);
-document.getElementById("cancelVisitBtn").addEventListener("click", () => {
-  document.getElementById("visitDialog").close();
-});
 resetViewingForm();
 renderViewingProperties();
 document.addEventListener("DOMContentLoaded", runCalculation);

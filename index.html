@@ -29,7 +29,6 @@
 
     <form id="viewingForm">
       <input id="editingPropertyId" type="hidden">
-      <input id="editingVisitId" type="hidden">
       <h3 id="viewFormTitle">新增看房物件</h3>
       <fieldset class="form-section">
         <legend>物件資訊</legend>
@@ -161,7 +160,8 @@
         <div class="result" id="loanResult"></div>
       </fieldset>
       <fieldset class="form-section visit-section">
-        <legend>看屋紀錄</legend>
+        <legend>看屋資料</legend>
+        <p class="field-help">每個物件只保留一組看房時間與備註；再次看屋時請編輯同一物件更新。</p>
         <div class="visit-entry-fields">
           <label>看房時間
             <input id="viewVisitTime" type="datetime-local" required>
@@ -186,7 +186,7 @@
             <th>比較</th><th>物件</th><th>狀態</th><th>類型</th><th>樓層</th>
             <th>總價（萬）</th><th>單價（萬／坪）</th><th>實際坪數</th>
             <th>管理費／月</th><th>首月月付（萬）</th><th>總利息（萬）</th>
-            <th>看屋備註</th><th>操作</th>
+            <th>看房時間</th><th>備註</th><th>操作</th>
           </tr>
         </thead>
         <tbody></tbody>
@@ -275,23 +275,6 @@
     </div>
   </section>
 </main>
-
-<dialog id="visitDialog" class="visit-dialog">
-  <form id="visitForm">
-    <input id="visitPropertyId" type="hidden">
-    <h2>新增看屋紀錄</h2>
-    <label>看房時間
-      <input id="visitDateTime" type="datetime-local" required>
-    </label>
-    <label>現場觀察與優缺點（備註）
-      <textarea id="visitNotes" rows="5" maxlength="3000"></textarea>
-    </label>
-    <div class="form-actions">
-      <button type="submit">儲存紀錄</button>
-      <button id="cancelVisitBtn" type="button" class="secondary-button">取消</button>
-    </div>
-  </form>
-</dialog>
 
 <footer>
   <p>本工具僅供試算參考，實際貸款與投資結果請以銀行與市場實際狀況為準。</p>
